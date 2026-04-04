@@ -60,6 +60,19 @@ function MatchCard({ match, currentUser }) {
     statusClasses = { bg: 'bg-red-100 text-red-700', dot: 'bg-red-500', label: 'Cancelled', border: 'border-l-red-500' }
   }
 
+  let formattedDate = 'Date unavailable';
+  if (match.createdAt) {
+    let d = match.createdAt;
+    if (typeof d.toDate === 'function') {
+      d = d.toDate();
+    } else if (!(d instanceof Date)) {
+      d = new Date(d);
+    }
+    if (!isNaN(d.getTime())) {
+      formattedDate = d.toLocaleDateString();
+    }
+  }
+
   return (
     <div className={`relative group bg-white border border-gray-200 border-l-4 ${statusClasses.border} rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-r-brand/30 hover:border-t-brand/30 hover:border-b-brand/30 transition-all duration-300`}>
       <div className="flex items-start justify-between mb-4">
@@ -83,7 +96,7 @@ function MatchCard({ match, currentUser }) {
           {match.part || 'Component'}
         </h3>
         <p className="text-sm font-medium text-gray-400">
-          {match.createdAt ? new Date(match.createdAt).toLocaleDateString() : 'Date unavailable'}
+          {formattedDate}
         </p>
       </div>
 

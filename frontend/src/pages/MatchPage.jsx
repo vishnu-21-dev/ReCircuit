@@ -1,4 +1,6 @@
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { getMatchDoc, fetchShopResponseTime } from '../api'
 
 // ── Shared Nav Header ──────────────────────────────────────────────────────
 function RecircuitIcon({ className = '' }) {
@@ -41,6 +43,26 @@ function NavHeader() {
 // ── Match Page Component ───────────────────────────────────────────────────
 
 export default function MatchPage() {
+  const { id } = useParams()
+  const [matchData, setMatchData] = useState(null)
+  const [responseTime, setResponseTime] = useState(null)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const match = await getMatchDoc(id);
+        setMatchData(match);
+        if (match.sellerId) {
+          const rt = await fetchShopResponseTime(match.sellerId);
+          setResponseTime(rt);
+        }
+      } catch (err) {
+        console.error("Match fetch err:", err);
+      }
+    }
+    load();
+  }, [id])
+
   const steps = [
     { label: 'Requested', status: 'completed' },
     { label: 'Matched', status: 'active' },
@@ -107,7 +129,7 @@ export default function MatchPage() {
               Matched Shop
             </h2>
 
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-2">
               <h3 className="text-2xl font-extrabold text-gray-900 leading-none">GreenFix Electronics</h3>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-50 border border-brand/20 text-brand text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5">
                 <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
@@ -116,6 +138,17 @@ export default function MatchPage() {
                 Verified
               </span>
             </div>
+
+            {responseTime && (
+              <div className="mb-4">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                  {responseTime.averageResponseHours === null ? "Response time unknown" :
+                   responseTime.averageResponseHours < 1 ? "Usually responds in under 1 hour" :
+                   responseTime.averageResponseHours <= 6 ? "Usually responds within a few hours" :
+                   "Usually responds within a day"}
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center gap-4 text-sm text-gray-600 font-medium mb-6">
               <div className="flex items-center gap-1.5 bg-yellow-50 px-2 py-1 rounded-md border border-yellow-100">

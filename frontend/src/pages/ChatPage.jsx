@@ -31,6 +31,10 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState("");
   const [moderationError, setModerationError] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [imageError, setImageError] = useState("");
   const messagesEndRef = useRef(null);
 
   const isBuyer = currentUser && matchData ? matchData.buyerId === currentUser.uid : false;
@@ -47,6 +51,27 @@ export default function ChatPage() {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError("Image must be under 5MB");
+      return;
+    }
+    setImageError("");
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
+    e.target.value = null; // reset input
+  };
+  
+  const cancelImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setImageError("");
   };
 
   // Auto-scroll
@@ -91,29 +116,60 @@ export default function ChatPage() {
     return () => unsubscribe();
   }, [matchId]);
 
-  // Send message
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !currentUser) return;
+    if ((!newMessage.trim() && !imageFile) || !currentUser || isUploading) return;
 
-    if (containsPersonalInfo(newMessage)) {
+    if (newMessage && containsPersonalInfo(newMessage)) {
       setModerationError("Sharing personal contact details is not allowed on ReCircuit. Use this chat to coordinate your transaction.");
       setTimeout(() => setModerationError(""), 4000);
       return;
     }
     setModerationError("");
+    setImageError("");
+
+    let imageUrl = null;
+    if (imageFile) {
+      try {
+        setIsUploading(true);
+        const formData = new FormData();
+        formData.append('file', imageFile);
+        formData.append('upload_preset', 'recircuit_chat');
+
+        const res = await fetch('https://api.cloudinary.com/v1_1/dwgo0iak1/image/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || 'Upload failed');
+        imageUrl = data.secure_url;
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setImageError("Failed to upload image.");
+        setIsUploading(false);
+        return;
+      }
+    }
 
     try {
+      setIsUploading(true);
       const messagesRef = collection(db, 'matches', matchId, 'messages');
-      await addDoc(messagesRef, {
+      const msgObj = {
         text: newMessage,
         senderId: currentUser.uid,
         senderName: currentUser.displayName || "User",
         createdAt: new Date()
-      });
+      };
+      if (imageUrl) {
+        msgObj.imageUrl = imageUrl;
+      }
+      await addDoc(messagesRef, msgObj);
       setNewMessage("");
+      cancelImage();
     } catch (error) {
       console.error("Error sending message:", error);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -216,6 +272,14 @@ export default function ChatPage() {
               <span className="text-xs text-gray-400 mb-1 px-1">{msg.senderName}</span>
               <div className={`px-4 py-2 max-w-xs ${isMine ? 'bg-green-700 text-white rounded-2xl rounded-tr-sm ml-auto' : 'bg-white/10 text-gray-200 rounded-2xl rounded-tl-sm'}`}>
                 {msg.text}
+                {msg.imageUrl && (
+                  <img 
+                    src={msg.imageUrl} 
+                    alt="Chat attachment" 
+                    className={`max-w-[200px] w-full rounded-lg cursor-pointer ${msg.text ? 'mt-2' : ''}`}
+                    onClick={() => window.open(msg.imageUrl, '_blank')}
+                  />
+                )}
               </div>
               <span className="text-xs text-gray-500 mt-1 px-1">{timeString}</span>
             </div>
@@ -225,25 +289,56 @@ export default function ChatPage() {
       </div>
 
       {/* Bottom input bar */}
-      <div className="p-4 bg-black/20 border-t border-white/10">
-        {moderationError && (
-          <p className="text-red-400 text-xs px-4 pb-1">Sharing personal contact details is not allowed on ReCircuit. Use this chat to coordinate your transaction.</p>
-        )}
-        <form onSubmit={handleSend} className="flex max-w-4xl mx-auto w-full">
-          <input 
-            type="text" 
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="bg-white/10 border border-green-700/50 text-white placeholder-gray-500 rounded-full px-5 py-2 flex-1 focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-          <button 
-            type="submit"
-            className="bg-green-600 hover:bg-green-500 text-white rounded-full px-5 py-2 ml-2 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-          >
-            Send
-          </button>
-        </form>
+      <div className="p-4 bg-black/20 border-t border-white/10 flex flex-col items-center w-full">
+        <div className="w-full max-w-4xl">
+          {moderationError && (
+            <p className="text-red-400 text-xs pb-2">Sharing personal contact details is not allowed on ReCircuit. Use this chat to coordinate your transaction.</p>
+          )}
+          {imageError && (
+            <p className="text-red-400 text-xs pb-2">{imageError}</p>
+          )}
+
+          {imagePreview && (
+            <div className="mb-3 relative inline-block">
+              <img src={imagePreview} alt="Preview" className="h-16 rounded object-cover border border-gray-600" />
+              <button 
+                type="button" 
+                onClick={cancelImage}
+                className="absolute -top-2 -right-2 bg-gray-500 hover:bg-gray-400 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold leading-none cursor-pointer"
+              >
+                X
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleSend} className="flex w-full items-center">
+            <label className="shrink-0 bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold text-xs px-3 py-2 rounded-full cursor-pointer transition-colors mr-2 flex items-center">
+              [IMG]
+              <input 
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                onChange={handleImageSelect}
+                disabled={isUploading}
+              />
+            </label>
+            <input 
+              type="text" 
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              disabled={isUploading}
+              className="bg-white/10 border border-green-700/50 text-white placeholder-gray-500 rounded-full px-5 py-2 flex-1 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+            />
+            <button 
+              type="submit"
+              disabled={isUploading}
+              className="shrink-0 bg-green-600 hover:bg-green-500 text-white rounded-full px-5 py-2 ml-2 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50"
+            >
+              {isUploading ? "Uploading..." : "Send"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

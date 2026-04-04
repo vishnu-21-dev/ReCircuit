@@ -38,7 +38,33 @@ app.get("/api/requests", async (req, res) => {
 
 app.post("/api/requests", async (req, res) => {
     try {
-        const { category, brand, model, part, grade, priceOffered, buyerId } = req.body;
+        const { category, brand, model, part, grade, priceOffered, buyerId, force } = req.body;
+        
+        if (!force && buyerId && part) {
+            const existingSnapshot = await db.collection("requests")
+                .where("buyerId", "==", buyerId)
+                .where("status", "in", ["open", "active"])
+                .get();
+
+            let duplicateId = null;
+            const newPartName = part.trim().toLowerCase();
+            
+            existingSnapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                const existingPartName = (data.part || '').trim().toLowerCase();
+                if (existingPartName === newPartName) {
+                    duplicateId = docSnap.id;
+                }
+            });
+
+            if (duplicateId) {
+                return res.status(409).json({ error: "Duplicate request", duplicate: true, existingRequestId: duplicateId });
+            }
+        }
+
+        const dateNow = new Date();
+        const expiresAtDate = new Date(dateNow.getTime() + 7 * 24 * 60 * 60 * 1000);
+        
         const docRef = await db.collection("requests").add({
             category,
             brand,
@@ -48,12 +74,39 @@ app.post("/api/requests", async (req, res) => {
             priceOffered,
             buyerId,
             status: "open",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            createdAt: dateNow.toISOString(),
+            updatedAt: dateNow.toISOString(),
+            expiresAt: admin.firestore.Timestamp.fromDate(expiresAtDate)
         });
-        res.json({ id: docRef.id, category, brand, model, part, grade, priceOffered, buyerId, status: "open" });
+        res.json({ id: docRef.id, category, brand, model, part, grade, priceOffered, buyerId, status: "open", expiresAt: admin.firestore.Timestamp.fromDate(expiresAtDate) });
     } catch (error) {
         console.error("Error creating request:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post("/api/requests/expire-old", async (req, res) => {
+    try {
+        const now = admin.firestore.Timestamp.now();
+        const snapshot = await db.collection("requests")
+            .where("status", "==", "open")
+            .where("expiresAt", "<=", now)
+            .get();
+        
+        let expiredCount = 0;
+        const batch = db.batch();
+        
+        snapshot.forEach(docSnap => {
+            batch.update(docSnap.ref, { status: "expired", updatedAt: new Date().toISOString() });
+            expiredCount++;
+        });
+        
+        if (expiredCount > 0) {
+            await batch.commit();
+        }
+        res.json({ expiredCount });
+    } catch (error) {
+        console.error("Error expiring old requests:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -203,11 +256,26 @@ app.patch("/api/matches/:matchId/status", async (req, res) => {
     try {
         const { matchId } = req.params;
         const { status } = req.body;
-        await db.collection("matches").doc(matchId).update({ 
+        
+        const docRef = db.collection("matches").doc(matchId);
+        const matchSnap = await docRef.get();
+        if (!matchSnap.exists) {
+            return res.status(404).json({ error: "Match not found" });
+        }
+        const matchData = matchSnap.data();
+        const dateNow = new Date().toISOString();
+        
+        const updates = { 
             status, 
-            updatedAt: new Date().toISOString() 
-        });
-        res.json({ success: true, id: matchId, status });
+            updatedAt: dateNow 
+        };
+        
+        if (!matchData.firstResponseAt) {
+            updates.firstResponseAt = dateNow;
+        }
+
+        await docRef.update(updates);
+        res.json({ success: true, id: matchId, status, firstResponseAt: updates.firstResponseAt });
     } catch (error) {
         console.error("Error updating match status:", error);
         res.status(500).json({ error: error.message });
@@ -230,6 +298,31 @@ app.get("/api/compatibility", async (req, res) => {
 });
 
 // ==================== SHOPS ====================
+app.get("/api/shops/:shopId/response-time", async (req, res) => {
+    try {
+        const { shopId } = req.params;
+        const snapshot = await db.collection("matches").where("sellerId", "==", shopId).get();
+        let totalMatches = 0;
+        let totalHours = 0;
+        
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.firstResponseAt && data.createdAt) {
+                totalMatches++;
+                const created = new Date(data.createdAt);
+                const responded = new Date(data.firstResponseAt);
+                const diffHours = (responded - created) / (1000 * 60 * 60);
+                totalHours += diffHours;
+            }
+        });
+        
+        const averageResponseHours = totalMatches > 0 ? totalHours / totalMatches : null;
+        res.json({ averageResponseHours, totalMatches });
+    } catch (error) {
+        console.error("Error fetching shop response time:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
 app.get("/api/shops", async (req, res) => {
     try {
         const { status } = req.query;

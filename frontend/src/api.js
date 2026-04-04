@@ -8,7 +8,10 @@ async function apiFetch(path, options = {}) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || `API error ${res.status}`);
+    const errorObj = new Error(err.error || `API error ${res.status}`);
+    errorObj.status = res.status;
+    errorObj.data = err;
+    throw errorObj;
   }
   return res.json();
 }
@@ -24,6 +27,9 @@ export const createRequest = (data) =>
 
 export const deleteRequest = (id) =>
   apiFetch(`/requests/${id}`, { method: 'DELETE' });
+
+export const expireOldRequests = () =>
+  apiFetch('/requests/expire-old', { method: 'POST' });
 
 // ── Compatibility ──────────────────────────────────────
 export const getCompatibility = () =>
@@ -74,3 +80,6 @@ export const createShop = (data) =>
 
 export const updateShop = (id, data) =>
   apiFetch(`/shops/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+
+export const fetchShopResponseTime = (shopId) =>
+  apiFetch(`/shops/${shopId}/response-time`);

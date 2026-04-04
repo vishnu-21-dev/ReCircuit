@@ -274,6 +274,7 @@ export default function BuyerPage() {
   const [grade, setGrade] = useState('')
   const [price, setPrice] = useState('')
   const [toast, setToast] = useState(false)
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false)
 
   const [myRequests, setMyRequests] = useState([])
   const [requestsLoading, setRequestsLoading] = useState(true)
@@ -306,6 +307,7 @@ export default function BuyerPage() {
   // Reset dependent fields when parent changes
   useEffect(() => { setBrand(''); setModel(''); setPart('') }, [category])
   useEffect(() => { setModel('') }, [brand])
+  useEffect(() => { setShowDuplicateWarning(false) }, [category, brand, model, part, grade, price])
 
   // Derived data
   const brandsForCategory = category ? BRANDS[category] || [] : []
@@ -323,7 +325,8 @@ export default function BuyerPage() {
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (force = false) => {
+    if (!force) setShowDuplicateWarning(false)
     setToast(true)
     try {
       const result = await createRequest({
@@ -334,15 +337,20 @@ export default function BuyerPage() {
         grade,
         priceOffered: price ? parseInt(price) : null,
         buyerId: currentUser.uid,
+        force,
       })
-      setMyRequests(prev => [{ id: result.id, category, brand, model, part, grade, priceOffered: price ? parseInt(price) : null, status: 'open', buyerId: currentUser.uid }, ...prev])
+      setMyRequests(prev => [{ id: result.id, category, brand, model, part, grade, priceOffered: price ? parseInt(price) : null, status: 'open', buyerId: currentUser.uid, expiresAt: result.expiresAt }, ...prev])
       setTimeout(() => {
         setToast(false)
         navigate('/results', { state: { device: brand + ' ' + (model || ''), part: part, model: model, requestId: result.id } })
       }, 1500)
     } catch (error) {
-      console.error('Error submitting request:', error)
       setToast(false)
+      if (error.status === 409 || error.message === 'Duplicate request' || error.message.includes('409')) {
+        setShowDuplicateWarning(true)
+      } else {
+        console.error('Error submitting request:', error)
+      }
     }
   }
 
@@ -379,25 +387,57 @@ export default function BuyerPage() {
               </span>
             </div>
             <div className="flex flex-col">
-              {myRequests.map(req => (
-                <div key={req.id} className="flex items-center justify-between gap-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">{req.part} for {req.brand} {req.model}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 bg-gray-50">{req.category}</span>
-                      {req.priceOffered && (
-                        <span className="text-xs font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Rs. {req.priceOffered}</span>
-                      )}
+              {myRequests.map(req => {
+                let isExpired = req.status === 'expired';
+                let daysLeft = 0;
+                let hoursLeft = 0;
+                if (!isExpired && req.expiresAt) {
+                  let expDate;
+                  if (req.expiresAt._seconds) {
+                    expDate = new Date(req.expiresAt._seconds * 1000);
+                  } else {
+                    expDate = new Date(req.expiresAt);
+                  }
+                  const diff = expDate.getTime() - Date.now();
+                  if (diff <= 0) {
+                    isExpired = true;
+                  } else {
+                    daysLeft = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    hoursLeft = Math.floor(diff / (1000 * 60 * 60));
+                  }
+                }
+
+                return (
+                  <div key={req.id} className={`flex items-center justify-between gap-4 py-3 border-b border-gray-100 last:border-0 transition-colors ${isExpired ? 'opacity-50 grayscale bg-gray-50' : 'hover:bg-gray-50/50'}`}>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start mb-1">
+                        <h3 className="text-sm font-semibold text-gray-900">{req.part} for {req.brand} {req.model}</h3>
+                        {isExpired ? (
+                          <span className="text-[10px] font-bold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ml-2">Expired</span>
+                        ) : req.expiresAt ? (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ml-2 ${hoursLeft < 24 ? 'text-orange-600 bg-orange-100' : 'text-blue-600 bg-blue-100'}`}>
+                            {hoursLeft < 24 ? 'Expires today' : `Expires in ${daysLeft} days`}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 bg-gray-50">{req.category}</span>
+                        {req.priceOffered && (
+                          <span className="text-xs font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Rs. {req.priceOffered}</span>
+                        )}
+                      </div>
                     </div>
+                    {!isExpired && (
+                      <button
+                        onClick={() => handleCancelRequest(req.id)}
+                        className="shrink-0 text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors border border-red-100"
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </div>
-                  <button
-                    onClick={() => handleCancelRequest(req.id)}
-                    className="shrink-0 text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors border border-red-100"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -512,54 +552,67 @@ export default function BuyerPage() {
           )}
 
           {/* ─── Navigation Buttons ─── */}
-          <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
-            {step > 1 ? (
-              <button
-                type="button"
-                onClick={() => setStep((s) => s - 1)}
-                className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-brand transition-colors"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M11.78 9.78a.75.75 0 01-1.06 0L8 7.06 5.28 9.78a.75.75 0 01-1.06-1.06l3.25-3.25a.75.75 0 011.06 0l3.25 3.25a.75.75 0 010 1.06z" clipRule="evenodd" />
-                </svg>
-                Back
-              </button>
-            ) : <div />}
+          {showDuplicateWarning ? (
+            <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col gap-4 animate-fadeIn">
+              <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-start gap-3">
+                <svg className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <p className="text-sm font-semibold text-orange-800">You already have an active request for {part ? <span className="font-bold">"{part}"</span> : 'this part'}. Do you want to submit anyway?</p>
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <button type="button" onClick={() => setShowDuplicateWarning(false)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="button" onClick={() => handleSubmit(true)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-md shadow-orange-500/20 transition-all">Submit anyway</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
+              {step > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep((s) => s - 1)}
+                  className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-brand transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M11.78 9.78a.75.75 0 01-1.06 0L8 7.06 5.28 9.78a.75.75 0 01-1.06-1.06l3.25-3.25a.75.75 0 011.06 0l3.25 3.25a.75.75 0 010 1.06z" clipRule="evenodd" />
+                  </svg>
+                  Back
+                </button>
+              ) : <div />}
 
-            {step < 4 ? (
-              <button
-                type="button"
-                disabled={!canProceed()}
-                onClick={() => setStep((s) => s + 1)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200
-                  ${canProceed()
-                    ? 'bg-brand text-white hover:bg-brand-dark focus:ring-2 focus:ring-brand focus:ring-offset-2'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'}
-                `}
-              >
-                Continue
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 011.06 0L8 8.94l2.72-2.72a.75.75 0 111.06 1.06l-3.25 3.25a.75.75 0 01-1.06 0L4.22 7.28a.75.75 0 010-1.06z" clipRule="evenodd" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={!canProceed()}
-                onClick={handleSubmit}
-                className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all duration-200
-                  ${canProceed()
-                    ? 'bg-brand text-white hover:bg-brand-dark focus:ring-2 focus:ring-brand focus:ring-offset-2 shadow-md shadow-brand/25'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'}
-                `}
-              >
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path d="M8 1a.75.75 0 01.75.75v5.5h5.5a.75.75 0 010 1.5h-5.5v5.5a.75.75 0 01-1.5 0v-5.5h-5.5a.75.75 0 010-1.5h5.5v-5.5A.75.75 0 018 1z" />
-                </svg>
-                Submit Request
-              </button>
-            )}
-          </div>
+              {step < 4 ? (
+                <button
+                  type="button"
+                  disabled={!canProceed()}
+                  onClick={() => setStep((s) => s + 1)}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200
+                    ${canProceed()
+                      ? 'bg-brand text-white hover:bg-brand-dark focus:ring-2 focus:ring-brand focus:ring-offset-2'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'}
+                  `}
+                >
+                  Continue
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 011.06 0L8 8.94l2.72-2.72a.75.75 0 111.06 1.06l-3.25 3.25a.75.75 0 01-1.06 0L4.22 7.28a.75.75 0 010-1.06z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!canProceed()}
+                  onClick={() => handleSubmit(false)}
+                  className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all duration-200
+                    ${canProceed()
+                      ? 'bg-brand text-white hover:bg-brand-dark focus:ring-2 focus:ring-brand focus:ring-offset-2 shadow-md shadow-brand/25'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'}
+                  `}
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M8 1a.75.75 0 01.75.75v5.5h5.5a.75.75 0 010 1.5h-5.5v5.5a.75.75 0 01-1.5 0v-5.5h-5.5a.75.75 0 010-1.5h5.5v-5.5A.75.75 0 018 1z" />
+                  </svg>
+                  Submit Request
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Step counter text */}

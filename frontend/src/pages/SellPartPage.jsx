@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getShopByUid, createListing, getCompatibility } from '../api'
 import GradingSection from '../components/GradingSection'
+import { calculateCompletenessScore } from '../utils/listingScore'
 
 // ── Data Maps ──────────────────────────────────────────────────────────────
 
@@ -247,6 +248,7 @@ export default function SellPartPage() {
   const [warranty, setWarranty] = useState('')
   const [compatibleModels, setCompatibleModels] = useState([])
   const [compatMode, setCompatMode] = useState(null) // 'manual' | 'suggest' | null
+  const [description, setDescription] = useState('')
 
   useEffect(() => { setBrand(''); setModel(''); setPart(''); setCompatibleModels([]); setCompatMode(null) }, [category])
   useEffect(() => { setModel(''); setCompatibleModels([]); setCompatMode(null) }, [brand])
@@ -265,6 +267,18 @@ export default function SellPartPage() {
       default: return false
     }
   }
+
+  const { score, missing } = calculateCompletenessScore({
+    partName: part,
+    description,
+    price,
+    condition: grade,
+    compatibleModels
+  })
+
+  let progressColor = 'bg-red-500'
+  if (score >= 80) progressColor = 'bg-green-500'
+  else if (score >= 40) progressColor = 'bg-yellow-500'
 
   if (verifyingShop) {
     return (
@@ -506,6 +520,13 @@ export default function SellPartPage() {
                 id="warranty" label="Warranty" value={warranty} onChange={setWarranty} 
                 options={['No Warranty', '1 Month', '3 Months', '6 Months', '1 Year']} placeholder="Select warranty duration..." 
               />
+              <div className="flex flex-col gap-2">
+                <label htmlFor="description" className="text-sm font-semibold text-gray-700">Description</label>
+                <textarea
+                  id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe the part condition, history, or specific characteristics..."
+                  className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand transition-all duration-200 hover:border-gray-300 min-h-[100px] resize-y"
+                />
+              </div>
             </div>
           )}
 
@@ -541,6 +562,23 @@ export default function SellPartPage() {
               <TextField id="price" type="number" min="1" label="Selling Price" value={price} onChange={setPrice} placeholder="999" prefix="Rs." />
             </div>
           )}
+
+          <div className="mt-8 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-bold text-gray-800">Listing strength</span>
+              <span className="text-sm font-bold text-gray-500">{score}/100</span>
+            </div>
+            <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden mb-4">
+              <div className={`h-full transition-all duration-500 ease-out ${progressColor}`} style={{ width: `${score}%` }}></div>
+            </div>
+            {missing.length > 0 && (
+              <ul className="text-xs text-gray-500 space-y-1.5 list-disc pl-4">
+                {missing.map((req, idx) => (
+                  <li key={idx}>{req}</li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
             {step > 1 ? (
