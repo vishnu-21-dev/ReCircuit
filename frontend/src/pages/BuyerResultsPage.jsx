@@ -1,7 +1,7 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getListings, getShops, createMatch, getCompatibility } from '../api'
+import { aiSearch, getListings, getShops, createMatch, getCompatibility } from '../api'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -124,6 +124,31 @@ export default function BuyerResultsPage() {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterGrade, setFilterGrade] = useState('All')
+
+  // AI Search state
+  const [aiQuery, setAiQuery] = useState('')
+  const [isAiSearching, setIsAiSearching] = useState(false)
+  const [aiResults, setAiResults] = useState(null)
+
+  const handleAiSearch = async () => {
+    if (!aiQuery.trim()) return
+    try {
+      setIsAiSearching(true)
+      const data = await aiSearch(aiQuery)
+      setAiResults(data)
+    } catch (err) {
+      console.error("AI Search returned an error:", err)
+      setAiResults({
+          results: [],
+          extractedIntent: { brand: "", model: "", part: "" },
+          aiUsed: false,
+          compatibilityUsed: false,
+          message: "An error occurred while searching. Please try again or use the filters below."
+      })
+    } finally {
+      setIsAiSearching(false)
+    }
+  }
 
   // Buyer geolocation state
   const [buyerLocation, setBuyerLocation] = useState(null)
@@ -357,6 +382,76 @@ export default function BuyerResultsPage() {
       <NavHeader />
 
       <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-10 flex flex-col gap-6">
+
+        {/* AI Search Section */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm mb-2">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input 
+              type="text"
+              value={aiQuery}
+              onChange={(e) => setAiQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAiSearch()}
+              placeholder="Describe what you need, e.g. my Realme Narzo 60 battery drains fast"
+              className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand"
+            />
+            <button 
+              onClick={handleAiSearch}
+              disabled={isAiSearching || !aiQuery.trim()}
+              className="px-6 py-3 bg-brand hover:bg-brand-dark text-white font-bold rounded-xl disabled:opacity-50 transition-colors shrink-0"
+            >
+              {isAiSearching ? 'Searching...' : 'Search'}
+            </button>
+          </div>
+
+          {aiResults && (
+            <div className="mt-6 flex flex-col gap-4 animate-fadeIn">
+              <div className="flex flex-col gap-1 border-b border-gray-100 pb-4">
+                <h3 className="font-bold text-gray-900">
+                  Searching for:{' '}
+                  <span className="text-brand">
+                    {[aiResults.extractedIntent.brand, aiResults.extractedIntent.model, aiResults.extractedIntent.part].filter(Boolean).join(' ')}
+                  </span>
+                </h3>
+                {!aiResults.aiUsed && (
+                  <p className="text-xs text-gray-500 font-medium">Showing keyword results (AI unavailable)</p>
+                )}
+                {aiResults.compatibilityUsed && (
+                  <p className="text-xs text-blue-600 font-medium">Some results include compatible models for your device</p>
+                )}
+              </div>
+
+              {aiResults.results.length === 0 ? (
+                <p className="text-sm text-gray-600 py-4 text-center bg-gray-50 rounded-xl border border-gray-100">
+                  {aiResults.message || 'No listings found. Try describing your issue differently or use the filters below.'}
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {aiResults.results.map(item => {
+                    const shopName = item.shopName || shopLocations[item.shopId]?.shopName || shopLocations[item.sellerId]?.shopName || 'Seller';
+                    return (
+                      <div key={item.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand transition-colors bg-gray-50 flex flex-col items-start text-left">
+                        <div className="flex justify-between items-start w-full mb-2 gap-2">
+                          <h4 className="font-bold text-gray-900 break-words flex-1">{item.part || 'Part'}</h4>
+                          <span className="font-black text-brand text-lg shrink-0">Rs. {item.price}</span>
+                        </div>
+                        <div className="text-sm text-gray-600 flex flex-col gap-1 w-full">
+                          <p><span className="font-semibold text-gray-500">Brand:</span> {item.brand || 'N/A'}</p>
+                          <p><span className="font-semibold text-gray-500">Model:</span> {item.model || 'N/A'}</p>
+                          <p><span className="font-semibold text-gray-500">Grade:</span> {item.grade || 'N/A'}</p>
+                          <p><span className="font-semibold text-gray-500">Shop:</span> {shopName}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-center my-2">
+          <span className="text-sm font-medium text-gray-400 tracking-widest">--- or use filters below ---</span>
+        </div>
         
         {/* Header & Search Summary */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">

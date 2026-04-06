@@ -83,3 +83,7 @@ export const updateShop = (id, data) =>
 
 export const fetchShopResponseTime = (shopId) =>
   apiFetch(`/shops/${shopId}/response-time`);
+
+// ── AI Search ──────────────────────────────────────────
+export const aiSearch = (query) =>
+  apiFetch('/search/ai', { method: 'POST', body: JSON.stringify({ query }) });

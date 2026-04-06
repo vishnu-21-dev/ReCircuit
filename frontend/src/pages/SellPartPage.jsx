@@ -303,8 +303,8 @@ export default function SellPartPage() {
         <div className="max-w-md w-full text-center">
           <p className="text-red-400 text-xl font-bold mb-2">Your shop application was rejected.</p>
           <p className="text-gray-400 mb-6">{shopReason}</p>
-          <button 
-            onClick={() => navigate('/onboarding')} 
+          <button
+            onClick={() => navigate('/onboarding')}
             className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-sm transition-colors border border-white/20"
           >
             Reapply
@@ -349,7 +349,7 @@ export default function SellPartPage() {
       <main className="flex-1 flex flex-col items-center px-6 py-10">
         <div className="text-center mb-2">
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-50 border border-brand/20 text-brand text-xs font-semibold uppercase tracking-widest mb-4">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
             List a Part to Sell
           </span>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3">
@@ -363,7 +363,7 @@ export default function SellPartPage() {
         </div>
 
         <div className="w-full max-w-xl bg-white border border-gray-200 rounded-2xl shadow-sm p-6 sm:p-8">
-          
+
           {step === 1 && (
             <div className="flex flex-col gap-6 animate-fadeIn">
               <div>
@@ -443,11 +443,10 @@ export default function SellPartPage() {
                                 key={m}
                                 type="button"
                                 onClick={() => setCompatibleModels(prev => isSelected ? prev.filter(x => x !== m) : [...prev, m])}
-                                className={`px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200 ${
-                                  isSelected
+                                className={`px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200 ${isSelected
                                     ? 'bg-green-600 text-white border-green-500 shadow-md shadow-green-900/30'
                                     : 'bg-white/10 text-gray-300 border-white/10 hover:border-green-500/40 hover:bg-white/15'
-                                }`}
+                                  }`}
                               >
                                 {m}
                               </button>
@@ -477,11 +476,10 @@ export default function SellPartPage() {
                                   key={m}
                                   type="button"
                                   onClick={() => setCompatibleModels(prev => isSelected ? prev.filter(x => x !== m) : [...prev, m])}
-                                  className={`px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200 ${
-                                    isSelected
+                                  className={`px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200 ${isSelected
                                       ? 'bg-green-600 text-white border-green-500 shadow-md shadow-green-900/30'
                                       : 'bg-white/10 text-gray-300 border-white/10 hover:border-green-500/40 hover:bg-white/15'
-                                  }`}
+                                    }`}
                                 >
                                   {m}
                                 </button>
@@ -516,9 +514,9 @@ export default function SellPartPage() {
                   <p className="text-gray-500 text-sm mt-1">Complete the grading above to submit</p>
                 )}
               </div>
-              <SelectField 
-                id="warranty" label="Warranty" value={warranty} onChange={setWarranty} 
-                options={['No Warranty', '1 Month', '3 Months', '6 Months', '1 Year']} placeholder="Select warranty duration..." 
+              <SelectField
+                id="warranty" label="Warranty" value={warranty} onChange={setWarranty}
+                options={['No Warranty', '1 Month', '3 Months', '6 Months', '1 Year']} placeholder="Select warranty duration..."
               />
               <div className="flex flex-col gap-2">
                 <label htmlFor="description" className="text-sm font-semibold text-gray-700">Description</label>
@@ -589,14 +587,14 @@ export default function SellPartPage() {
             ) : <div />}
 
             {step < 4 ? (
-              <button type="button" disabled={!canProceed()} onClick={() => setStep(s => s + 1)} 
+              <button type="button" disabled={!canProceed()} onClick={() => setStep(s => s + 1)}
                 className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${canProceed() ? 'bg-brand text-white hover:bg-brand-dark focus:ring-2 focus:ring-brand focus:ring-offset-2' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
               >
                 Continue
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path fillRule="evenodd" d="M4.22 6.22a.75.75 0 011.06 0L8 8.94l2.72-2.72a.75.75 0 111.06 1.06l-3.25 3.25a.75.75 0 01-1.06 0L4.22 7.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>
               </button>
             ) : (
-              <button type="button" disabled={!canProceed()} onClick={handleSubmit} 
+              <button type="button" disabled={!canProceed()} onClick={handleSubmit}
                 className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${canProceed() ? 'bg-brand text-white hover:bg-brand-dark shadow-md shadow-brand/25 focus:ring-2 focus:ring-brand focus:ring-offset-2' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
               >
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path fillRule="evenodd" d="M8 2a1 1 0 011 1v4h4a1 1 0 110 2H9v4a1 1 0 11-2 0V9H3a1 1 0 110-2h4V3a1 1 0 011-1z" clipRule="evenodd" /></svg>

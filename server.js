@@ -197,6 +197,163 @@ app.patch("/api/listings/:id", async (req, res) => {
     }
 });
 
+// ==================== AI SEARCH ====================
+app.post("/api/search/ai", async (req, res) => {
+    try {
+        const { query } = req.body;
+        if (!query) {
+            return res.status(400).json({ error: "Query is required" });
+        }
+
+        let aiUsed = false;
+        let compatibilityUsed = false;
+        let extractedIntent = { brand: "", model: "", part: "" };
+
+        try {
+            const geminiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyBKgGmo1ze4DOM2chQtKLXO8m3thVI_g0U", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: `Extract the device brand, device model, and part needed from this text. Return ONLY a valid JSON object with exactly these fields: { brand: string, model: string, part: string }. If any field cannot be determined, use an empty string. Do not include any explanation, markdown, or backticks. Text: ${query}`
+                        }]
+                    }]
+                })
+            });
+
+            if (geminiRes.ok) {
+                const data = await geminiRes.json();
+                let text = data.candidates[0].content.parts[0].text.trim();
+                
+                // Parse JSON. Sometimes Gemini returns it wrapped in ```json
+                if (text.startsWith("```json")) {
+                    text = text.replace(/^```json/, "").replace(/```$/, "").trim();
+                } else if (text.startsWith("```")) {
+                    text = text.replace(/^```/, "").replace(/```$/, "").trim();
+                }
+                
+                const parsed = JSON.parse(text);
+                extractedIntent = {
+                    brand: parsed.brand || "",
+                    model: parsed.model || "",
+                    part: parsed.part || ""
+                };
+                aiUsed = true;
+            }
+        } catch (error) {
+            console.error("Gemini AI error:", error);
+            aiUsed = false;
+        }
+
+        const snapshot = await db.collection("listings").where("status", "==", "available").get();
+        const listings = [];
+        snapshot.forEach(docSnap => listings.push({ id: docSnap.id, ...docSnap.data() }));
+
+        let finalResults = [];
+        let message = undefined;
+
+        if (aiUsed) {
+            const { brand, model, part } = extractedIntent;
+            if (!brand && !model && !part) {
+                return res.json({
+                    results: [],
+                    extractedIntent,
+                    aiUsed: true,
+                    compatibilityUsed: false,
+                    message: "Could not understand the query, please try the filters below"
+                });
+            }
+
+            let compModels = [];
+            if (model) {
+                const compSnap = await db.collection("compatibility").get();
+                compSnap.forEach(docSnap => {
+                    const docId = docSnap.id.replace(/-/g, '/');
+                    if (docId.toLowerCase() === model.toLowerCase()) {
+                        compModels = docSnap.data().compatibleWith || [];
+                    }
+                });
+            }
+
+            const cleanBrand = brand.toLowerCase();
+            const cleanModel = model.toLowerCase();
+            const cleanPart = part.toLowerCase();
+
+            listings.forEach(listing => {
+                let score = 0;
+                let usedCompat = false;
+
+                const lBrand = (listing.brand || "").toLowerCase();
+                const lModel = (listing.model || "").toLowerCase();
+                const lPart = (listing.part || "").toLowerCase();
+                
+                if (cleanBrand && lBrand.includes(cleanBrand)) score += 1;
+                if (cleanModel && lModel.includes(cleanModel)) score += 1;
+                if (cleanPart && lPart.includes(cleanPart)) score += 1;
+
+                if (cleanModel && Array.isArray(listing.compatibleModels)) {
+                    if (listing.compatibleModels.some(m => m.toLowerCase() === cleanModel)) {
+                        score += 1;
+                        usedCompat = true;
+                    }
+                }
+
+                if (compModels.length > 0 && lModel) {
+                    if (compModels.some(m => m.toLowerCase() === lModel)) {
+                        score += 1;
+                        usedCompat = true;
+                    }
+                }
+
+                if (score > 0) {
+                    finalResults.push({ ...listing, _score: score });
+                    if (usedCompat) compatibilityUsed = true;
+                }
+            });
+
+            finalResults.sort((a, b) => b._score - a._score);
+            finalResults = finalResults.map(l => {
+                const { _score, ...rest } = l;
+                return rest;
+            });
+        } else {
+            const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+            const filler = ["i", "my", "a", "the", "for", "need", "want", "is", "are", "not", "working", "broken", "dead", "cracked", "draining", "fast", "slow"];
+            const searchTokens = tokens.filter(t => !filler.includes(t));
+
+            listings.forEach(listing => {
+                let score = 0;
+                const fieldStr = `${listing.brand || ""} ${listing.model || ""} ${listing.part || ""}`.toLowerCase();
+                searchTokens.forEach(t => {
+                    if (fieldStr.includes(t)) score += 1;
+                });
+                if (score > 0) {
+                    finalResults.push({ ...listing, _score: score });
+                }
+            });
+
+            finalResults.sort((a, b) => b._score - a._score);
+            finalResults = finalResults.map(l => {
+                const { _score, ...rest } = l;
+                return rest;
+            });
+            compatibilityUsed = false;
+        }
+
+        res.json({
+            results: finalResults,
+            extractedIntent,
+            aiUsed,
+            compatibilityUsed,
+            ...(message && { message })
+        });
+    } catch (error) {
+        console.error("AI search error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ==================== MATCHES ====================
 app.post("/api/matches", async (req, res) => {
     try {
