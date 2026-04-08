@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getShopByUid, createListing, getCompatibility } from '../api'
+import { getShopByUid, createListing, getCompatibility, geminiPriceSuggest } from '../api'
 import GradingSection from '../components/GradingSection'
 import { calculateCompletenessScore } from '../utils/listingScore'
 
@@ -249,6 +249,9 @@ export default function SellPartPage() {
   const [compatibleModels, setCompatibleModels] = useState([])
   const [compatMode, setCompatMode] = useState(null) // 'manual' | 'suggest' | null
   const [description, setDescription] = useState('')
+  const [priceSuggestion, setPriceSuggestion] = useState(null)
+  const [priceSuggestionLoading, setPriceSuggestionLoading] = useState(false)
+  const [videoBlob, setVideoBlob] = useState(null)
 
   useEffect(() => { setBrand(''); setModel(''); setPart(''); setCompatibleModels([]); setCompatMode(null) }, [category])
   useEffect(() => { setModel(''); setCompatibleModels([]); setCompatMode(null) }, [brand])
@@ -279,6 +282,19 @@ export default function SellPartPage() {
   let progressColor = 'bg-red-500'
   if (score >= 80) progressColor = 'bg-green-500'
   else if (score >= 40) progressColor = 'bg-yellow-500'
+
+  const fetchPriceSuggestion = async (gradeValue) => {
+    if (!category || !brand || !model || !part || !gradeValue) return
+    try {
+      setPriceSuggestionLoading(true)
+      const result = await geminiPriceSuggest({ category, brand, model, part, grade: gradeValue })
+      setPriceSuggestion(result)
+    } catch (err) {
+      console.error('Price suggestion failed:', err)
+    } finally {
+      setPriceSuggestionLoading(false)
+    }
+  }
 
   if (verifyingShop) {
     return (
@@ -507,13 +523,41 @@ export default function SellPartPage() {
                 <h2 className="text-lg font-bold text-gray-900">Specify the precise part component</h2>
               </div>
               <SelectField id="part" label="Part Name" value={part} onChange={setPart} options={partsForCategory} placeholder="Select a part…" />
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 -mx-6 sm:-mx-8 px-6 sm:px-8 py-6 bg-gray-900 rounded-2xl">
                 <h3 className="text-green-400 font-semibold text-lg">Part Condition Grading</h3>
-                <GradingSection onChange={(g) => setGrade(g || '')} />
+                <GradingSection
+                  onChange={(g) => {
+                    setGrade(g || '')
+                    if (g) fetchPriceSuggestion(g)
+                  }}
+                  onVideoRecorded={(blob) => setVideoBlob(blob)}
+                />
                 {!grade && (
                   <p className="text-gray-500 text-sm mt-1">Complete the grading above to submit</p>
                 )}
               </div>
+              {priceSuggestionLoading && (
+                <div className="mt-4 p-4 rounded-xl border border-green-700/30 bg-green-950/30 text-green-400 text-sm font-medium animate-pulse">
+                  Getting price suggestion...
+                </div>
+              )}
+              {priceSuggestion && !priceSuggestionLoading && (
+                <div className="mt-4 p-4 rounded-xl border border-green-700/30 bg-green-950/30 space-y-2">
+                  <p className="text-green-400 font-semibold text-sm uppercase tracking-widest">AI Price Suggestion</p>
+                  <p className="text-white font-bold text-xl">{priceSuggestion.range}</p>
+                  <p className="text-gray-400 text-sm">{priceSuggestion.reasoning}</p>
+                  {priceSuggestion.marketNote && (
+                    <p className="text-gray-500 text-xs italic">{priceSuggestion.marketNote}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPrice(priceSuggestion.suggestedPrice?.toString() || '')}
+                    className="mt-2 px-4 py-2 rounded-lg bg-green-600/80 hover:bg-green-600 text-white text-sm font-semibold transition-colors border border-green-500/50"
+                  >
+                    Use suggested price
+                  </button>
+                </div>
+              )}
               <SelectField
                 id="warranty" label="Warranty" value={warranty} onChange={setWarranty}
                 options={['No Warranty', '1 Month', '3 Months', '6 Months', '1 Year']} placeholder="Select warranty duration..."

@@ -1,4 +1,5 @@
 require("dotenv").config();
+const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
@@ -14,6 +15,9 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+const GEMINI_KEY = process.env.GEMINI_KEY;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
 
 // ==================== BUYER REQUESTS ====================
 app.get("/api/requests", async (req, res) => {
@@ -199,159 +203,144 @@ app.patch("/api/listings/:id", async (req, res) => {
 
 // ==================== AI SEARCH ====================
 app.post("/api/search/ai", async (req, res) => {
-    try {
-        const { query } = req.body;
-        if (!query) {
-            return res.status(400).json({ error: "Query is required" });
-        }
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: "Query required" });
 
-        let aiUsed = false;
-        let compatibilityUsed = false;
-        let extractedIntent = { brand: "", model: "", part: "" };
+    const geminiRes = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `You are a search assistant for an electronics repair parts marketplace in India.
+Extract the brand, model, and part name from this search query: "${query}"
+Respond ONLY with a JSON object, no markdown, no backticks, no explanation.
+Format: {"brand": "...", "model": "...", "part": "..."}`
+          }]
+        }]
+      })
+    });
 
-        try {
-            const geminiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyBKgGmo1ze4DOM2chQtKLXO8m3thVI_g0U", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: `Extract the device brand, device model, and part needed from this text. Return ONLY a valid JSON object with exactly these fields: { brand: string, model: string, part: string }. If any field cannot be determined, use an empty string. Do not include any explanation, markdown, or backticks. Text: ${query}`
-                        }]
-                    }]
-                })
-            });
+    const geminiData = await geminiRes.json();
+    console.log("Gemini raw response:", JSON.stringify(geminiData, null, 2));
 
-            if (geminiRes.ok) {
-                const data = await geminiRes.json();
-                let text = data.candidates[0].content.parts[0].text.trim();
-                
-                // Parse JSON. Sometimes Gemini returns it wrapped in ```json
-                if (text.startsWith("```json")) {
-                    text = text.replace(/^```json/, "").replace(/```$/, "").trim();
-                } else if (text.startsWith("```")) {
-                    text = text.replace(/^```/, "").replace(/```$/, "").trim();
-                }
-                
-                const parsed = JSON.parse(text);
-                extractedIntent = {
-                    brand: parsed.brand || "",
-                    model: parsed.model || "",
-                    part: parsed.part || ""
-                };
-                aiUsed = true;
-            }
-        } catch (error) {
-            console.error("Gemini AI error:", error);
-            aiUsed = false;
-        }
-
-        const snapshot = await db.collection("listings").where("status", "==", "available").get();
-        const listings = [];
-        snapshot.forEach(docSnap => listings.push({ id: docSnap.id, ...docSnap.data() }));
-
-        let finalResults = [];
-        let message = undefined;
-
-        if (aiUsed) {
-            const { brand, model, part } = extractedIntent;
-            if (!brand && !model && !part) {
-                return res.json({
-                    results: [],
-                    extractedIntent,
-                    aiUsed: true,
-                    compatibilityUsed: false,
-                    message: "Could not understand the query, please try the filters below"
-                });
-            }
-
-            let compModels = [];
-            if (model) {
-                const compSnap = await db.collection("compatibility").get();
-                compSnap.forEach(docSnap => {
-                    const docId = docSnap.id.replace(/-/g, '/');
-                    if (docId.toLowerCase() === model.toLowerCase()) {
-                        compModels = docSnap.data().compatibleWith || [];
-                    }
-                });
-            }
-
-            const cleanBrand = brand.toLowerCase();
-            const cleanModel = model.toLowerCase();
-            const cleanPart = part.toLowerCase();
-
-            listings.forEach(listing => {
-                let score = 0;
-                let usedCompat = false;
-
-                const lBrand = (listing.brand || "").toLowerCase();
-                const lModel = (listing.model || "").toLowerCase();
-                const lPart = (listing.part || "").toLowerCase();
-                
-                if (cleanBrand && lBrand.includes(cleanBrand)) score += 1;
-                if (cleanModel && lModel.includes(cleanModel)) score += 1;
-                if (cleanPart && lPart.includes(cleanPart)) score += 1;
-
-                if (cleanModel && Array.isArray(listing.compatibleModels)) {
-                    if (listing.compatibleModels.some(m => m.toLowerCase() === cleanModel)) {
-                        score += 1;
-                        usedCompat = true;
-                    }
-                }
-
-                if (compModels.length > 0 && lModel) {
-                    if (compModels.some(m => m.toLowerCase() === lModel)) {
-                        score += 1;
-                        usedCompat = true;
-                    }
-                }
-
-                if (score > 0) {
-                    finalResults.push({ ...listing, _score: score });
-                    if (usedCompat) compatibilityUsed = true;
-                }
-            });
-
-            finalResults.sort((a, b) => b._score - a._score);
-            finalResults = finalResults.map(l => {
-                const { _score, ...rest } = l;
-                return rest;
-            });
-        } else {
-            const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-            const filler = ["i", "my", "a", "the", "for", "need", "want", "is", "are", "not", "working", "broken", "dead", "cracked", "draining", "fast", "slow"];
-            const searchTokens = tokens.filter(t => !filler.includes(t));
-
-            listings.forEach(listing => {
-                let score = 0;
-                const fieldStr = `${listing.brand || ""} ${listing.model || ""} ${listing.part || ""}`.toLowerCase();
-                searchTokens.forEach(t => {
-                    if (fieldStr.includes(t)) score += 1;
-                });
-                if (score > 0) {
-                    finalResults.push({ ...listing, _score: score });
-                }
-            });
-
-            finalResults.sort((a, b) => b._score - a._score);
-            finalResults = finalResults.map(l => {
-                const { _score, ...rest } = l;
-                return rest;
-            });
-            compatibilityUsed = false;
-        }
-
-        res.json({
-            results: finalResults,
-            extractedIntent,
-            aiUsed,
-            compatibilityUsed,
-            ...(message && { message })
-        });
-    } catch (error) {
-        console.error("AI search error:", error);
-        res.status(500).json({ error: error.message });
+    if (!geminiRes.ok || !geminiData.candidates) {
+      console.error("Gemini API error:", geminiData);
+      return res.json({
+        results: [],
+        parsed: { brand: "", model: "", part: "" },
+        extractedIntent: { brand: "", model: "", part: "" },
+        aiUsed: false,
+        message: "AI unavailable, try keyword search"
+      });
     }
+
+    const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+
+    let parsed = { brand: "", model: "", part: "" };
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      console.error("Failed to parse Gemini JSON:", cleaned);
+      return res.json({
+        results: [],
+        parsed,
+        extractedIntent: parsed,
+        aiUsed: false,
+        message: "AI could not understand the query, try being more specific"
+      });
+    }
+
+    const { brand, model, part } = parsed;
+
+    let listingsRef = db.collection("listings");
+    let snapshot = await listingsRef
+      .where("status", "==", "active")
+      .get();
+
+    const results = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      const matchesBrand = brand ? data.brand?.toLowerCase().includes(brand.toLowerCase()) : true;
+      const matchesModel = model ? (data.model?.toLowerCase().includes(model.toLowerCase()) || (data.compatibleModels || []).some(m => m.toLowerCase().includes(model.toLowerCase()))) : true;
+      const matchesPart = part ? data.part?.toLowerCase().includes(part.toLowerCase()) : true;
+      if (matchesBrand && matchesModel && matchesPart) {
+        results.push({ id: doc.id, ...data });
+      }
+    });
+
+    return res.json({ results, parsed });
+  } catch (err) {
+    console.error("AI search error:", err);
+    return res.status(500).json({ error: "AI search failed", details: err.message });
+  }
+});
+
+// ==================== AI PRICE SUGGEST ====================
+app.post("/api/ai/price-suggest", async (req, res) => {
+  try {
+    const { category, brand, model, part, grade } = req.body;
+    if (!category || !brand || !model || !part || !grade) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const gradeLabels = { A: 'Excellent', B: 'Good', C: 'Fair', D: 'Poor' };
+    const gradeLabel = gradeLabels[grade] || grade;
+
+    const geminiRes = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `You are a pricing expert for electronics repair parts in India, specifically Bangalore.
+A seller wants to list the following part:
+- Category: ${category}
+- Brand: ${brand}
+- Model: ${model}
+- Part: ${part}
+- Condition Grade: ${grade} (${gradeLabel})
+
+Suggest a fair market price in Indian Rupees for this used spare part in the Indian repair market.
+Consider that this is a second-hand part sold by a local repair shop, not a brand new OEM part.
+
+Respond ONLY with a JSON object, no markdown, no backticks, no explanation:
+{
+  "suggestedPrice": <number, the single best price in rupees as integer>,
+  "range": "<string, e.g. Rs. 800 - Rs. 1200>",
+  "reasoning": "<1-2 sentences explaining the price>",
+  "marketNote": "<optional 1 sentence about market conditions or tips>"
+}`
+          }]
+        }]
+      })
+    });
+
+    const geminiData = await geminiRes.json();
+
+    if (!geminiRes.ok || !geminiData.candidates) {
+      console.error("Gemini price suggest error:", geminiData);
+      return res.status(503).json({ error: "AI unavailable" });
+    }
+
+    const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      console.error("Failed to parse Gemini price JSON:", cleaned);
+      return res.status(500).json({ error: "Failed to parse AI response" });
+    }
+
+    return res.json(parsed);
+  } catch (err) {
+    console.error("Price suggestion error:", err);
+    return res.status(500).json({ error: "Price suggestion failed", details: err.message });
+  }
 });
 
 // ==================== MATCHES ====================

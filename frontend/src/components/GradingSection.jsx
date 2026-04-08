@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 const QUESTIONS = [
   {
@@ -76,8 +76,16 @@ const getGradeInfo = (score) => {
   return { grade: 'D', text: 'Grade D - Poor', color: 'bg-red-500/20 text-red-400 border-red-500/50' };
 };
 
-const GradingSection = ({ onChange }) => {
+const GradingSection = ({ onChange, onVideoRecorded }) => {
   const [answers, setAnswers] = useState({});
+  const [recording, setRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [stream, setStream] = useState(null);
+  const [recordedBlob, setRecordedBlob] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [countdown, setCountdown] = useState(null);
+  const [videoConfirmed, setVideoConfirmed] = useState(false);
+  const videoRef = useRef(null);
 
   const isComplete = Object.keys(answers).length === QUESTIONS.length;
 
@@ -94,12 +102,91 @@ const GradingSection = ({ onChange }) => {
     }
   }, [isComplete, totalScore, onChange]);
 
+  // Cleanup media streams on unmount
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
+
+  // Set stream to video element when recording starts
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
   const handleSelect = (questionId, points) => {
     setAnswers(prev => ({
       ...prev,
       [questionId]: points
     }));
   };
+
+  const startRecording = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setStream(mediaStream);
+      setRecording(true);
+      setCountdown(45);
+
+      const recorder = new MediaRecorder(mediaStream);
+      const chunks = [];
+
+      recorder.ondataavailable = (e) => {
+        chunks.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        setRecordedBlob(blob);
+        setPreviewUrl(URL.createObjectURL(blob));
+        setRecording(false);
+        setCountdown(null);
+        mediaStream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      alert('Could not access camera. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && recording) {
+      mediaRecorder.stop();
+    }
+  };
+
+  const reRecord = () => {
+    setRecordedBlob(null);
+    setPreviewUrl(null);
+    setVideoConfirmed(false);
+  };
+
+  const confirmVideo = () => {
+    if (recordedBlob) {
+      onVideoRecorded?.(recordedBlob);
+      setVideoConfirmed(true);
+    }
+  };
+
+  // Countdown timer effect
+  useEffect(() => {
+    let timer;
+    if (recording && countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+    } else if (countdown === 0 && recording) {
+      stopRecording();
+    }
+    return () => clearTimeout(timer);
+  }, [countdown, recording]);
 
   const currentGradeInfo = isComplete ? getGradeInfo(totalScore) : null;
 
@@ -162,6 +249,80 @@ const GradingSection = ({ onChange }) => {
         <div className="mt-6 text-sm text-amber-400/80 italic text-center">
           Please answer all {QUESTIONS.length} questions to calculate the part's grade.
           ({Object.keys(answers).length}/{QUESTIONS.length} completed)
+        </div>
+      )}
+
+      {isComplete && (
+        <div className="mt-8 space-y-4 bg-black/60 rounded-2xl p-6 border border-white/10">
+          {videoConfirmed ? (
+            <div className="text-center space-y-3">
+              <p className="text-green-400 font-medium">Video recorded successfully. Your listing is ready to submit.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col items-start">
+                <h4 className="text-green-400 font-semibold text-lg mb-2">Part Verification Video</h4>
+                <p className="text-gray-400 text-sm">Record a short video of the part so buyers can verify its condition. Required to publish listing.</p>
+              </div>
+
+              {!recording && !recordedBlob && (
+                <button
+                  onClick={startRecording}
+                  className="w-full py-3 px-4 bg-green-600/90 hover:bg-green-600 text-white rounded-xl font-medium transition-all duration-300 border border-green-500/50 hover:shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+                >
+                  Start Recording
+                </button>
+              )}
+
+              {recording && (
+                <div className="space-y-4">
+                  <div className="relative w-full aspect-video bg-black/80 rounded-xl overflow-hidden border border-white/10">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-green-400 font-medium">Recording... {countdown}s remaining</p>
+                    <button
+                      onClick={stopRecording}
+                      className="py-2 px-6 bg-red-600/80 hover:bg-red-600 text-white rounded-xl font-medium transition-all duration-300 border border-red-500/50"
+                    >
+                      Stop Recording
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {recordedBlob && !recording && (
+                <div className="space-y-4">
+                  <div className="relative w-full aspect-video bg-black/80 rounded-xl overflow-hidden border border-white/10">
+                    <video
+                      src={previewUrl}
+                      controls
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={reRecord}
+                      className="flex-1 py-2 px-4 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl font-medium transition-all duration-300 border border-white/10"
+                    >
+                      Re-record
+                    </button>
+                    <button
+                      onClick={confirmVideo}
+                      className="flex-1 py-2 px-4 bg-green-600/90 hover:bg-green-600 text-white rounded-xl font-medium transition-all duration-300 border border-green-500/50 hover:shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+                    >
+                      Use this video
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

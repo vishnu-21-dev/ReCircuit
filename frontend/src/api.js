@@ -87,3 +87,6 @@ export const fetchShopResponseTime = (shopId) =>
 // ── AI Search ──────────────────────────────────────────
 export const aiSearch = (query) =>
   apiFetch('/search/ai', { method: 'POST', body: JSON.stringify({ query }) });
+
+export const geminiPriceSuggest = (data) =>
+  apiFetch('/ai/price-suggest', { method: 'POST', body: JSON.stringify(data) });
