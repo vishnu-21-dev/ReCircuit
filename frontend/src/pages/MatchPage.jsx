@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getMatchDoc, fetchShopResponseTime } from '../api'
+import { getMatchDoc, fetchShopResponseTime, createReview } from '../api'
+import { useAuth } from '../context/AuthContext'
 
 // ── Shared Nav Header ──────────────────────────────────────────────────────
 function RecircuitIcon({ className = '' }) {
@@ -46,6 +47,12 @@ export default function MatchPage() {
   const { id } = useParams()
   const [matchData, setMatchData] = useState(null)
   const [responseTime, setResponseTime] = useState(null)
+  const { currentUser } = useAuth()
+  const [rating, setRating] = useState(0)
+  const [comment, setComment] = useState('')
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
+  const [reviewSubmitted, setReviewSubmitted] = useState(false)
+  const [reviewError, setReviewError] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -69,6 +76,30 @@ export default function MatchPage() {
     { label: 'In Transit', status: 'pending' },
     { label: 'Completed', status: 'pending' },
   ]
+
+  const handleReviewSubmit = async () => {
+    if (!rating || !matchData) return
+    try {
+      setReviewSubmitting(true)
+      setReviewError(null)
+      await createReview({
+        matchId: id,
+        buyerId: currentUser.uid,
+        shopId: matchData.sellerId,
+        rating,
+        comment
+      })
+      setReviewSubmitted(true)
+    } catch (err) {
+      if (err.status === 409) {
+        setReviewSubmitted(true)
+      } else {
+        setReviewError(err.message || 'Failed to submit review')
+      }
+    } finally {
+      setReviewSubmitting(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col font-sans">
@@ -223,6 +254,73 @@ export default function MatchPage() {
             })}
           </div>
         </section>
+
+        {matchData?.status === 'completed' && currentUser?.uid === matchData?.buyerId && (
+          <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+            <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-5 border-b border-gray-100 pb-3">
+              Rate this Shop
+            </h2>
+            {reviewSubmitted ? (
+              <div className="flex flex-col items-center gap-2 py-4">
+                <div className="w-12 h-12 rounded-full bg-brand flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="text-gray-800 font-bold">Review submitted</p>
+                <p className="text-gray-500 text-sm">Thank you for your feedback.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold text-gray-700">Rating</span>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRating(star)}
+                        className="focus:outline-none"
+                      >
+                        <svg
+                          className={`w-8 h-8 transition-colors ${star <= rating ? 'text-yellow-400' : 'text-gray-200'}`}
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-semibold text-gray-700">Comment (optional)</label>
+                  <textarea
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="How was your experience with this shop?"
+                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand transition-all resize-none min-h-[90px]"
+                  />
+                </div>
+                {reviewError && (
+                  <p className="text-sm text-red-500">{reviewError}</p>
+                )}
+                <button
+                  type="button"
+                  disabled={!rating || reviewSubmitting}
+                  onClick={handleReviewSubmit}
+                  className={`self-end px-6 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                    rating && !reviewSubmitting
+                      ? 'bg-brand text-white hover:bg-brand-dark'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Bottom Navigation Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8 pt-4 pb-8 border-t border-gray-100 animate-fadeIn" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getShopByUid, createListing, getCompatibility, geminiPriceSuggest } from '../api'
+import { getShopByUid, createListing, getCompatibility, geminiPriceSuggest, geminiCompatSuggest } from '../api'
 import GradingSection from '../components/GradingSection'
 import { calculateCompletenessScore } from '../utils/listingScore'
+import compatibilityMap from '../data/compatibilityMap'
 
 // ── Data Maps ──────────────────────────────────────────────────────────────
 
@@ -203,19 +204,6 @@ export default function SellPartPage() {
   const [shopStatus, setShopStatus] = useState(null)
   const [shopReason, setShopReason] = useState('')
   const [shopData, setShopData] = useState(null)
-  const [compatibilityMap, setCompatibilityMap] = useState({})
-
-  useEffect(() => {
-    const fetchCompat = async () => {
-      try {
-        const data = await getCompatibility();
-        setCompatibilityMap(data || {});
-      } catch (err) {
-        console.error("Error fetching compatibility:", err);
-      }
-    };
-    fetchCompat();
-  }, [])
 
   useEffect(() => {
     const verifyShop = async () => {
@@ -251,11 +239,14 @@ export default function SellPartPage() {
   const [description, setDescription] = useState('')
   const [priceSuggestion, setPriceSuggestion] = useState(null)
   const [priceSuggestionLoading, setPriceSuggestionLoading] = useState(false)
+  const [priceSuggestionError, setPriceSuggestionError] = useState(null)
   const [videoBlob, setVideoBlob] = useState(null)
+  const [compatSuggesting, setCompatSuggesting] = useState(false)
+  const [compatSuggestFailed, setCompatSuggestFailed] = useState(false)
 
   useEffect(() => { setBrand(''); setModel(''); setPart(''); setCompatibleModels([]); setCompatMode(null) }, [category])
   useEffect(() => { setModel(''); setCompatibleModels([]); setCompatMode(null) }, [brand])
-  useEffect(() => { setCompatibleModels([]); setCompatMode(null) }, [model])
+  useEffect(() => { setCompatibleModels([]); setCompatMode(null); setCompatSuggesting(false); setCompatSuggestFailed(false) }, [model])
 
   const brandsForCategory = category ? BRANDS[category] || [] : []
   const modelsForBrand = category && brand && MODELS[category]?.[brand] ? MODELS[category][brand] : null
@@ -284,13 +275,21 @@ export default function SellPartPage() {
   else if (score >= 40) progressColor = 'bg-yellow-500'
 
   const fetchPriceSuggestion = async (gradeValue) => {
-    if (!category || !brand || !model || !part || !gradeValue) return
+    if (!category || !brand || !model || !part || !gradeValue) {
+      console.log('Price suggestion skipped - missing fields:', { category, brand, model, part, gradeValue })
+      return
+    }
     try {
+      console.log('Fetching price suggestion for:', { category, brand, model, part, grade: gradeValue })
       setPriceSuggestionLoading(true)
+      setPriceSuggestionError(null)
       const result = await geminiPriceSuggest({ category, brand, model, part, grade: gradeValue })
+      console.log('Price suggestion result:', result)
       setPriceSuggestion(result)
     } catch (err) {
       console.error('Price suggestion failed:', err)
+      setPriceSuggestionError(err.message || 'Failed to get price suggestion')
+      setPriceSuggestion(null)
     } finally {
       setPriceSuggestionLoading(false)
     }
@@ -428,9 +427,24 @@ export default function SellPartPage() {
                       {/* Card 2: Suggest */}
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           setCompatMode('suggest')
-                          setCompatibleModels(compatibilityMap[model] ? [...compatibilityMap[model]] : [])
+                          setCompatSuggestFailed(false)
+                          if (compatibilityMap[model] && compatibilityMap[model].length > 0) {
+                            setCompatibleModels([...compatibilityMap[model]])
+                          } else {
+                            try {
+                              setCompatSuggesting(true)
+                              const suggested = await geminiCompatSuggest({ category, brand, model })
+                              setCompatibleModels(suggested || [])
+                            } catch (err) {
+                              console.error('compat suggest failed:', err)
+                              setCompatSuggestFailed(true)
+                              setCompatibleModels([])
+                            } finally {
+                              setCompatSuggesting(false)
+                            }
+                          }
                         }}
                         className="group relative flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-green-700/30 bg-gradient-to-br from-green-950/60 to-gray-900/60 backdrop-blur-md hover:border-green-500/50 hover:shadow-lg hover:shadow-green-900/20 transition-all duration-300 cursor-pointer"
                       >
@@ -482,10 +496,16 @@ export default function SellPartPage() {
                         <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Suggested models</span>
                         <button type="button" onClick={() => { setCompatMode(null); setCompatibleModels([]) }} className="text-xs text-gray-500 hover:text-green-400 transition-colors">← Change mode</button>
                       </div>
-                      {compatibilityMap[model] && compatibilityMap[model].length > 0 ? (
+                      {compatSuggesting ? (
+                        <div className="mt-2 p-4 rounded-xl border border-amber-700/30 bg-amber-950/30 text-amber-400 text-sm font-medium animate-pulse">
+                          Getting compatibility suggestions...
+                        </div>
+                      ) : compatSuggestFailed || (!compatibilityMap[model]?.length && !compatibleModels.length) ? (
+                        <p className="text-sm text-gray-500 italic">No compatibility data available for this model. You can skip this.</p>
+                      ) : (
                         <>
                           <div className="flex flex-wrap gap-2 mb-3">
-                            {compatibilityMap[model].map((m) => {
+                            {compatibleModels.map((m) => {
                               const isSelected = compatibleModels.includes(m)
                               return (
                                 <button
@@ -493,9 +513,9 @@ export default function SellPartPage() {
                                   type="button"
                                   onClick={() => setCompatibleModels(prev => isSelected ? prev.filter(x => x !== m) : [...prev, m])}
                                   className={`px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200 ${isSelected
-                                      ? 'bg-green-600 text-white border-green-500 shadow-md shadow-green-900/30'
-                                      : 'bg-white/10 text-gray-300 border-white/10 hover:border-green-500/40 hover:bg-white/15'
-                                    }`}
+                                    ? 'bg-green-600 text-white border-green-500 shadow-md shadow-green-900/30'
+                                    : 'bg-white/10 text-gray-300 border-white/10 hover:border-green-500/40 hover:bg-white/15'
+                                  }`}
                                 >
                                   {m}
                                 </button>
@@ -504,11 +524,9 @@ export default function SellPartPage() {
                           </div>
                           <p className="text-xs text-gray-500 flex items-center gap-1.5">
                             <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            These are commonly known compatible models. You can deselect any.
+                            These are AI-suggested compatible models. You can deselect any.
                           </p>
                         </>
-                      ) : (
-                        <p className="text-sm text-gray-500 italic">No compatibility data available for this model. You can skip this.</p>
                       )}
                     </div>
                   )}
@@ -539,6 +557,13 @@ export default function SellPartPage() {
               {priceSuggestionLoading && (
                 <div className="mt-4 p-4 rounded-xl border border-green-700/30 bg-green-950/30 text-green-400 text-sm font-medium animate-pulse">
                   Getting price suggestion...
+                </div>
+              )}
+              {priceSuggestionError && !priceSuggestionLoading && (
+                <div className="mt-4 p-4 rounded-xl border border-red-700/30 bg-red-950/30 text-red-400 text-sm">
+                  <p className="font-semibold">Price suggestion failed</p>
+                  <p className="text-xs text-red-300 mt-1">{priceSuggestionError}</p>
+                  <p className="text-xs text-gray-400 mt-2">Please enter a price manually or try again.</p>
                 </div>
               )}
               {priceSuggestion && !priceSuggestionLoading && (

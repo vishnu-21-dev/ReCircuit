@@ -1,9 +1,13 @@
 // Central API helper — all frontend data calls route through here
+import { auth } from './firebase';
+
 const API_BASE = '/api';
 
 async function apiFetch(path, options = {}) {
+  const token = await auth.currentUser?.getIdToken?.().catch(() => null);
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { 'Content-Type': 'application/json', ...authHeader, ...options.headers },
     ...options,
   });
   if (!res.ok) {
@@ -54,11 +58,11 @@ export const updateListing = (id, data) =>
 export const createMatch = (data) =>
   apiFetch('/matches', { method: 'POST', body: JSON.stringify(data) });
 
-export const getMatchesByUser = (userId) =>
-  apiFetch(`/matches/${userId}`);
+export const getMatches = () =>
+  apiFetch('/matches');
 
 export const getMatchDoc = (matchId) =>
-  apiFetch(`/matches/doc/${matchId}`);
+  apiFetch(`/matches/${matchId}`);
 
 export const updateMatchStatus = (matchId, status) =>
   apiFetch(`/matches/${matchId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
@@ -90,3 +94,24 @@ export const aiSearch = (query) =>
 
 export const geminiPriceSuggest = (data) =>
   apiFetch('/ai/price-suggest', { method: 'POST', body: JSON.stringify(data) });
+
+export async function geminiCompatSuggest({ category, brand, model }) {
+  const res = await fetch(`${API_BASE}/ai/compat-suggest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category, brand, model })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'compat-suggest failed');
+  return data.models;
+}
+
+// ── Reviews ───────────────────────────────────────────
+export const createReview = (data) =>
+  apiFetch('/reviews', { method: 'POST', body: JSON.stringify(data) });
+
+export const getShopReviews = (shopId) =>
+  apiFetch(`/shops/${shopId}/reviews`);
+
+export const replyToReview = (reviewId, reply) =>
+  apiFetch(`/reviews/${reviewId}/reply`, { method: 'PUT', body: JSON.stringify({ reply }) });

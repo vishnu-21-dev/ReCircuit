@@ -283,7 +283,7 @@ export default function BuyerPage() {
     if (!currentUser) return
     const fetchRequests = async () => {
       try {
-        const data = await getRequests({ buyerId: currentUser.uid })
+        const data = await getRequests({ buyerUid: currentUser.uid })
         setMyRequests(data)
       } catch (err) {
         console.error('Error fetching requests:', err)
@@ -327,7 +327,6 @@ export default function BuyerPage() {
 
   const handleSubmit = async (force = false) => {
     if (!force) setShowDuplicateWarning(false)
-    setToast(true)
     try {
       const result = await createRequest({
         category,
@@ -336,10 +335,10 @@ export default function BuyerPage() {
         part,
         grade,
         priceOffered: price ? parseInt(price) : null,
-        buyerId: currentUser.uid,
         force,
       })
-      setMyRequests(prev => [{ id: result.id, category, brand, model, part, grade, priceOffered: price ? parseInt(price) : null, status: 'open', buyerId: currentUser.uid, expiresAt: result.expiresAt }, ...prev])
+      setToast(true)
+      setMyRequests(prev => [{ id: result.id, category, brand, model, part, grade, priceOffered: price ? parseInt(price) : null, status: 'open', buyerUid: currentUser.uid, expiresAt: result.expiresAt }, ...prev])
       setTimeout(() => {
         setToast(false)
         navigate('/results', { state: { device: brand + ' ' + (model || ''), part: part, model: model, requestId: result.id } })
@@ -350,6 +349,7 @@ export default function BuyerPage() {
         setShowDuplicateWarning(true)
       } else {
         console.error('Error submitting request:', error)
+        alert(error?.data?.error || error?.message || 'Failed to submit request')
       }
     }
   }

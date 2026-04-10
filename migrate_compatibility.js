@@ -1,17 +1,11 @@
-const { initializeApp } = require("firebase/app");
-const { getFirestore, doc, setDoc } = require("firebase/firestore");
+const admin = require("firebase-admin");
+const serviceAccount = require("./serviceAccountKey.json");
 
-const firebaseConfig = {
-    apiKey: "AIzaSyDih5PI--od8rbqBtKzOzJGxpV5FPnBAZk",
-    authDomain: "ideathon2026-ab2cf.firebaseapp.com",
-    projectId: "ideathon2026-ab2cf",
-    storageBucket: "ideathon2026-ab2cf.firebasestorage.app",
-    messagingSenderId: "1046969850319",
-    appId: "1:1046969850319:web:f564fec5c5fa51d20c1aba"
-};
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = admin.firestore();
 
 const compatibilityMap = {
   // Samsung Smartphones
@@ -177,7 +171,7 @@ async function migrate() {
         // especially '/' but our data doesn't have slashes. Still, safe to replace them.
         for (const [model, compatibleWith] of Object.entries(compatibilityMap)) {
             const docId = model.replace(/\//g, "-");
-            await setDoc(doc(db, "compatibility", docId), {
+            await db.collection("compatibility").doc(docId).set({
                 compatibleWith: compatibleWith
             });
             count++;
