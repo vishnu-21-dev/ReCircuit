@@ -15,6 +15,7 @@ import LoginPage from './pages/LoginPage'
 import ShopOnboardingPage from './pages/ShopOnboardingPage'
 import AdminPage from './pages/AdminPage'
 import ChatPage from './pages/ChatPage'
+import ShopReviewsPage from './pages/ShopReviewsPage'
 
 // ProtectedRoute component ensures user is authenticated before viewing a page
 function ProtectedRoute({ children, requiredRole }) {
@@ -118,6 +119,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             element={
               <ProtectedRoute>
                 <ChatPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/shop/:shopId/reviews"
+            element={
+              <ProtectedRoute>
+                <ShopReviewsPage />
               </ProtectedRoute>
             }
           />

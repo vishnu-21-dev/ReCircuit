@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getShopByUid, createListing, getCompatibility, geminiPriceSuggest, geminiCompatSuggest } from '../api'
+import { getShopByUid, createListing, getCompatibility, geminiPriceSuggest, geminiCompatSuggest, visualRecognizePart, detectFakeListing, verifyGrade } from '../api'
 import GradingSection from '../components/GradingSection'
 import { calculateCompletenessScore } from '../utils/listingScore'
 import compatibilityMap from '../data/compatibilityMap'
@@ -244,6 +244,15 @@ export default function SellPartPage() {
   const [compatSuggesting, setCompatSuggesting] = useState(false)
   const [compatSuggestFailed, setCompatSuggestFailed] = useState(false)
 
+  // Visual Recognition & Fake Detection State
+  const [recognitionImage, setRecognitionImage] = useState(null)
+  const [recognitionLoading, setRecognitionLoading] = useState(false)
+  const [recognitionResult, setRecognitionResult] = useState(null)
+  const [fakeCheckResult, setFakeCheckResult] = useState(null)
+  const [fakeCheckLoading, setFakeCheckLoading] = useState(false)
+  const [gradeVerifyResult, setGradeVerifyResult] = useState(null)
+  const [gradeVerifyLoading, setGradeVerifyLoading] = useState(false)
+
   useEffect(() => { setBrand(''); setModel(''); setPart(''); setCompatibleModels([]); setCompatMode(null) }, [category])
   useEffect(() => { setModel(''); setCompatibleModels([]); setCompatMode(null) }, [brand])
   useEffect(() => { setCompatibleModels([]); setCompatMode(null); setCompatSuggesting(false); setCompatSuggestFailed(false) }, [model])
@@ -353,6 +362,112 @@ export default function SellPartPage() {
     } catch (error) {
       console.error('Error adding listing:', error)
       setToast(false)
+    }
+  }
+
+  // ── Visual Recognition Handler ────────────────────────────────────────────
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    // Limit file size to 2MB
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image too large. Please use an image under 2MB.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setRecognitionImage(reader.result)
+      setRecognitionResult(null)
+    }
+    reader.onerror = () => {
+      alert('Failed to read image file.')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleVisualRecognition = async () => {
+    if (!recognitionImage) return
+    try {
+      setRecognitionLoading(true)
+      const base64 = recognitionImage.split(',')[1]
+
+      // Debug logging
+      console.log('Sending image for recognition, base64 length:', base64?.length)
+
+      const result = await visualRecognizePart(base64)
+      console.log('Recognition result:', result)
+      setRecognitionResult(result)
+
+      // Auto-fill form if confidence is high enough
+      if (result.confidence === 'High' || result.confidence === 'Medium') {
+        if (result.category && CATEGORIES.includes(result.category)) setCategory(result.category)
+        if (result.part) setPart(result.part)
+        if (result.grade && ['A', 'B', 'C', 'D'].includes(result.grade)) setGrade(result.grade)
+        if (result.brand) setBrand(result.brand)
+        if (result.model) setModel(result.model)
+      }
+    } catch (err) {
+      console.error('Visual recognition failed:', err)
+      console.error('Error details:', err.data || err.message)
+      const errorMsg = err.data?.error || err.message || 'Unknown error'
+      alert(`Failed to analyze image: ${errorMsg}`)
+    } finally {
+      setRecognitionLoading(false)
+    }
+  }
+
+  // ── Grade Verification Handler ──────────────────────────────────────────
+  const handleGradeVerify = async () => {
+    if (!recognitionImage || !grade) {
+      alert('Please upload a photo and select a grade first')
+      return
+    }
+    try {
+      setGradeVerifyLoading(true)
+      setGradeVerifyResult(null)
+      const base64 = recognitionImage.split(',')[1]
+      const result = await verifyGrade({
+        imageBase64: base64,
+        category,
+        brand,
+        model,
+        part,
+        claimedGrade: grade
+      })
+      setGradeVerifyResult(result)
+    } catch (err) {
+      console.error('Grade verification failed:', err)
+      alert('Grade verification failed: ' + (err.message || 'Unknown error'))
+    } finally {
+      setGradeVerifyLoading(false)
+    }
+  }
+
+  // ── Fake Detection Handler ────────────────────────────────────────────────
+  const handleFakeCheck = async () => {
+    if (!part || !brand) {
+      alert('Please fill in at least brand and part before checking')
+      return
+    }
+    try {
+      setFakeCheckLoading(true)
+      const result = await detectFakeListing({
+        category,
+        brand,
+        model,
+        part,
+        price: parseInt(price) || 0,
+        grade,
+        description,
+        imageBase64: recognitionImage ? recognitionImage.split(',')[1] : null
+      })
+      setFakeCheckResult(result)
+    } catch (err) {
+      console.error('Fake detection failed:', err)
+    } finally {
+      setFakeCheckLoading(false)
     }
   }
 
@@ -604,6 +719,86 @@ export default function SellPartPage() {
                 <p className="text-sm text-gray-500 mt-1">Set a competitive price to sell faster.</p>
               </div>
 
+              {/* AI Photo Upload for Verification */}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <h3 className="text-sm font-bold text-purple-900">Upload Part Photo for AI Verification</h3>
+                  <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">Optional</span>
+                </div>
+
+                {!recognitionImage ? (
+                  <label className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-dashed border-purple-300 rounded-xl cursor-pointer hover:bg-purple-50/50 transition-colors">
+                    <svg className="w-8 h-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span className="text-sm text-purple-700 font-medium">Take or upload a photo of the part</span>
+                    <span className="text-xs text-purple-500">Required for AI Grade Verification</span>
+                    <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
+                  </label>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <img src={recognitionImage} alt="Part for verification" className="w-full h-40 object-contain rounded-xl bg-gray-100" />
+                      <button
+                        onClick={() => { setRecognitionImage(null); setRecognitionResult(null); }}
+                        className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white rounded-lg shadow-sm text-gray-500 hover:text-red-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+
+                    {!recognitionResult && (
+                      <button
+                        onClick={handleVisualRecognition}
+                        disabled={recognitionLoading}
+                        className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                      >
+                        {recognitionLoading ? (
+                          <>
+                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                            Analyze Photo with AI
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {recognitionResult && (
+                      <div className={`p-3 rounded-xl text-sm ${recognitionResult.confidence === 'High' ? 'bg-green-100 border border-green-200' : recognitionResult.confidence === 'Medium' ? 'bg-yellow-50 border border-yellow-200' : 'bg-orange-50 border border-orange-200'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-gray-900">Detected: {recognitionResult.part}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            recognitionResult.confidence === 'High' ? 'bg-green-200 text-green-800' :
+                            recognitionResult.confidence === 'Medium' ? 'bg-yellow-200 text-yellow-800' :
+                            'bg-orange-200 text-orange-800'
+                          }`}>{recognitionResult.confidence} confidence</span>
+                        </div>
+                        {(recognitionResult.category || recognitionResult.brand) && (
+                          <p className="text-gray-600 text-xs mb-1">
+                            {recognitionResult.category}{recognitionResult.category && recognitionResult.brand ? ' · ' : ''}{recognitionResult.brand}
+                            {recognitionResult.model ? ` · ${recognitionResult.model}` : ''}
+                          </p>
+                        )}
+                        {recognitionResult.grade && (
+                          <p className="text-gray-600 text-xs">Suggested grade: {recognitionResult.grade}</p>
+                        )}
+                        {recognitionResult.notes && (
+                          <p className="text-gray-500 text-xs mt-2 italic">"{recognitionResult.notes}"</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="bg-brand-50 rounded-xl p-4 border border-brand/20">
                 <p className="text-xs font-semibold text-brand uppercase tracking-widest mb-3 border-b border-brand/10 pb-2">Listing Summary</p>
                 <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
@@ -627,6 +822,147 @@ export default function SellPartPage() {
               </div>
 
               <TextField id="price" type="number" min="1" label="Selling Price" value={price} onChange={setPrice} placeholder="999" prefix="Rs." />
+
+              {/* AI Fake Detection */}
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="text-sm font-bold text-amber-900">AI Listing Verification</h3>
+                </div>
+
+                {!fakeCheckResult ? (
+                  <button
+                    onClick={handleFakeCheck}
+                    disabled={fakeCheckLoading || !part || !brand}
+                    className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    {fakeCheckLoading ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                        Checking...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Verify Listing with AI
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className={`p-3 rounded-lg text-sm ${
+                    fakeCheckResult.riskLevel === 'High' ? 'bg-red-100 border border-red-200' :
+                    fakeCheckResult.riskLevel === 'Medium' ? 'bg-yellow-100 border border-yellow-200' :
+                    'bg-green-100 border border-green-200'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-gray-900">Risk Level: {fakeCheckResult.riskLevel}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        fakeCheckResult.riskLevel === 'High' ? 'bg-red-200 text-red-800' :
+                        fakeCheckResult.riskLevel === 'Medium' ? 'bg-yellow-200 text-yellow-800' :
+                        'bg-green-200 text-green-800'
+                      }`}>Score: {fakeCheckResult.riskScore}/100</span>
+                    </div>
+                    {fakeCheckResult.issues && fakeCheckResult.issues.length > 0 && (
+                      <ul className="text-xs text-gray-700 space-y-1 list-disc pl-4 mb-2">
+                        {fakeCheckResult.issues.map((issue, idx) => (
+                          <li key={idx}>{issue}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="text-xs text-gray-600 italic">{fakeCheckResult.reasoning}</p>
+                    <div className="mt-2 pt-2 border-t border-black/5">
+                      <span className={`text-xs font-bold ${
+                        fakeCheckResult.recommendation === 'approve' ? 'text-green-700' :
+                        fakeCheckResult.recommendation === 'reject' ? 'text-red-700' :
+                        'text-yellow-700'
+                      }`}>
+                        Recommendation: {fakeCheckResult.recommendation === 'approve' ? 'Ready to post' : fakeCheckResult.recommendation === 'reject' ? 'Review needed' : 'Proceed with caution'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setFakeCheckResult(null)}
+                      className="mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
+                    >
+                      Check again
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* AI Grade Verification */}
+              {recognitionImage && grade && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <h3 className="text-sm font-bold text-blue-900">AI Grade Verification</h3>
+                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">Beta</span>
+                  </div>
+
+                  {!gradeVerifyResult ? (
+                    <button
+                      onClick={handleGradeVerify}
+                      disabled={gradeVerifyLoading}
+                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                    >
+                      {gradeVerifyLoading ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                          Verifying...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          Verify Grade with AI
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className={`p-3 rounded-lg text-sm ${
+                      gradeVerifyResult.match ? 'bg-green-100 border border-green-200' :
+                      gradeVerifyResult.recommendation === 'downgrade' ? 'bg-yellow-100 border border-yellow-200' :
+                      'bg-red-100 border border-red-200'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-gray-900">
+                          {gradeVerifyResult.match ? 'Grade Verified ✓' : 'Mismatch Detected'}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          gradeVerifyResult.confidence === 'High' ? 'bg-green-200 text-green-800' :
+                          gradeVerifyResult.confidence === 'Medium' ? 'bg-yellow-200 text-yellow-800' :
+                          'bg-orange-200 text-orange-800'
+                        }`}>{gradeVerifyResult.confidence} confidence</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                        <span className="text-gray-500">Claimed Grade:</span>
+                        <span className="text-gray-900 font-medium text-right">{grade}</span>
+                        <span className="text-gray-500">AI Detected:</span>
+                        <span className="text-gray-900 font-medium text-right">{gradeVerifyResult.aiGrade || 'Unknown'}</span>
+                      </div>
+                      <p className="text-gray-600 text-xs italic mb-2">{gradeVerifyResult.reasoning}</p>
+                      <div className="mt-2 pt-2 border-t border-black/5">
+                        <span className={`text-xs font-bold ${
+                          gradeVerifyResult.recommendation === 'approve' ? 'text-green-700' :
+                          gradeVerifyResult.recommendation === 'reject' ? 'text-red-700' :
+                          'text-yellow-700'
+                        }`}>
+                          Recommendation: {gradeVerifyResult.recommendation === 'approve' ? 'Grade matches photo' : gradeVerifyResult.recommendation === 'downgrade' ? `Consider downgrading to ${gradeVerifyResult.aiGrade}` : 'Review photo quality'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setGradeVerifyResult(null)}
+                        className="mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
+                      >
+                        Verify again
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

@@ -115,3 +115,15 @@ export const getShopReviews = (shopId) =>
 
 export const replyToReview = (reviewId, reply) =>
   apiFetch(`/reviews/${reviewId}/reply`, { method: 'PUT', body: JSON.stringify({ reply }) });
+
+// ── AI Visual Recognition ──────────────────────────────
+export const visualRecognizePart = (imageBase64) =>
+  apiFetch('/ai/visual-recognition', { method: 'POST', body: JSON.stringify({ imageBase64 }) });
+
+// ── AI Fake Listing Detector ───────────────────────────
+export const detectFakeListing = (data) =>
+  apiFetch('/ai/detect-fake', { method: 'POST', body: JSON.stringify(data) });
+
+// ── AI Grade Verification ──────────────────────────────
+export const verifyGrade = (data) =>
+  apiFetch('/ai/verify-grade', { method: 'POST', body: JSON.stringify(data) });

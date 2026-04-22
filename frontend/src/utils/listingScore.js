@@ -2,16 +2,18 @@ export function calculateCompletenessScore(listing = {}) {
   let score = 0;
   const missing = [];
 
-  if (listing.partName && listing.partName.trim() !== '') {
+  // Check for part name (either part or partName)
+  if ((listing.part && listing.part.trim() !== '') || (listing.partName && listing.partName.trim() !== '')) {
     score += 20;
   } else {
     missing.push('Add a part name');
   }
 
-  if (listing.description && listing.description.trim().length > 30) {
+  // Description is optional, check category instead for dropdown scoring
+  if (listing.category && listing.category.trim() !== '') {
     score += 20;
   } else {
-    missing.push('Add a description longer than 30 characters');
+    missing.push('Select a category');
   }
 
   const priceNum = Number(listing.price);
@@ -21,10 +23,11 @@ export function calculateCompletenessScore(listing = {}) {
     missing.push('Set a price greater than 0');
   }
 
-  if (listing.condition && listing.condition.trim() !== '') {
+  // Check for grade/condition (either grade or condition)
+  if ((listing.grade && listing.grade.trim() !== '') || (listing.condition && listing.condition.trim() !== '')) {
     score += 20;
   } else {
-    missing.push('Select a condition or grade');
+    missing.push('Select a grade (A, B, C, or D)');
   }
 
   const hasCompatible =

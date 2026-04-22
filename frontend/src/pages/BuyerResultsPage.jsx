@@ -136,6 +136,7 @@ export default function BuyerResultsPage() {
       setIsAiSearching(true)
       const data = await aiSearch(aiQuery)
       setAiResults(data)
+      console.log('AI response:', data);
     } catch (err) {
       console.error("AI Search returned an error:", err)
       setAiResults({

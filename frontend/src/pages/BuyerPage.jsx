@@ -283,7 +283,7 @@ export default function BuyerPage() {
     if (!currentUser) return
     const fetchRequests = async () => {
       try {
-        const data = await getRequests({ buyerUid: currentUser.uid })
+        const data = await getRequests({ buyerId: currentUser.uid })
         setMyRequests(data)
       } catch (err) {
         console.error('Error fetching requests:', err)
@@ -335,6 +335,7 @@ export default function BuyerPage() {
         part,
         grade,
         priceOffered: price ? parseInt(price) : null,
+        buyerId: currentUser.uid,
         force,
       })
       setToast(true)
