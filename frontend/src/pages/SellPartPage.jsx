@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getShopByUid, createListing, getCompatibility, geminiPriceSuggest, geminiCompatSuggest, visualRecognizePart, detectFakeListing, verifyGrade } from '../api'
@@ -241,6 +241,13 @@ export default function SellPartPage() {
   const [priceSuggestionLoading, setPriceSuggestionLoading] = useState(false)
   const [priceSuggestionError, setPriceSuggestionError] = useState(null)
   const [videoBlob, setVideoBlob] = useState(null)
+
+  // Debounce refs for price suggestion API calls
+  const priceSuggestionTimeoutRef = useRef(null)
+  const pendingGradeRef = useRef(null)
+  const fetchPriceSuggestionRef = useRef(null)
+  const lastFetchedKeyRef = useRef(null)  // Track last fetched combination to prevent duplicates
+
   const [compatSuggesting, setCompatSuggesting] = useState(false)
   const [compatSuggestFailed, setCompatSuggestFailed] = useState(false)
 
@@ -253,9 +260,19 @@ export default function SellPartPage() {
   const [gradeVerifyResult, setGradeVerifyResult] = useState(null)
   const [gradeVerifyLoading, setGradeVerifyLoading] = useState(false)
 
-  useEffect(() => { setBrand(''); setModel(''); setPart(''); setCompatibleModels([]); setCompatMode(null) }, [category])
-  useEffect(() => { setModel(''); setCompatibleModels([]); setCompatMode(null) }, [brand])
-  useEffect(() => { setCompatibleModels([]); setCompatMode(null); setCompatSuggesting(false); setCompatSuggestFailed(false) }, [model])
+  useEffect(() => { setBrand(''); setModel(''); setPart(''); setCompatibleModels([]); setCompatMode(null); setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [category])
+  useEffect(() => { setModel(''); setCompatibleModels([]); setCompatMode(null); setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [brand])
+  useEffect(() => { setCompatibleModels([]); setCompatMode(null); setCompatSuggesting(false); setCompatSuggestFailed(false); setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [model])
+  useEffect(() => { setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [part])
+
+  // Cleanup debounce timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (priceSuggestionTimeoutRef.current) {
+        clearTimeout(priceSuggestionTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const brandsForCategory = category ? BRANDS[category] || [] : []
   const modelsForBrand = category && brand && MODELS[category]?.[brand] ? MODELS[category][brand] : null
@@ -283,9 +300,17 @@ export default function SellPartPage() {
   if (score >= 80) progressColor = 'bg-green-500'
   else if (score >= 40) progressColor = 'bg-yellow-500'
 
-  const fetchPriceSuggestion = async (gradeValue) => {
+  // Fetch price suggestion - only fetches once per unique combination
+  const fetchPriceSuggestion = useCallback(async (gradeValue) => {
     if (!category || !brand || !model || !part || !gradeValue) {
       console.log('Price suggestion skipped - missing fields:', { category, brand, model, part, gradeValue })
+      return
+    }
+    // Create a unique key for this combination
+    const fetchKey = `${category}|${brand}|${model}|${part}|${gradeValue}`
+    // Skip if we already fetched for this exact combination
+    if (lastFetchedKeyRef.current === fetchKey) {
+      console.log('Price suggestion already fetched for this combination, skipping')
       return
     }
     try {
@@ -295,6 +320,7 @@ export default function SellPartPage() {
       const result = await geminiPriceSuggest({ category, brand, model, part, grade: gradeValue })
       console.log('Price suggestion result:', result)
       setPriceSuggestion(result)
+      lastFetchedKeyRef.current = fetchKey  // Mark this combination as fetched
     } catch (err) {
       console.error('Price suggestion failed:', err)
       setPriceSuggestionError(err.message || 'Failed to get price suggestion')
@@ -302,7 +328,26 @@ export default function SellPartPage() {
     } finally {
       setPriceSuggestionLoading(false)
     }
-  }
+  }, [category, brand, model, part])
+
+  // Stable debounced function that won't recreate on every render
+  const debouncedFetchPriceSuggestion = useCallback((gradeValue) => {
+    pendingGradeRef.current = gradeValue
+    if (priceSuggestionTimeoutRef.current) {
+      clearTimeout(priceSuggestionTimeoutRef.current)
+    }
+    priceSuggestionTimeoutRef.current = setTimeout(() => {
+      const currentGrade = pendingGradeRef.current
+      if (currentGrade && fetchPriceSuggestionRef.current) {
+        fetchPriceSuggestionRef.current(currentGrade)
+      }
+    }, 800) // 800ms debounce
+  }, []) // Empty deps - this function is now stable
+
+  // Keep the ref updated with the latest function
+  useEffect(() => {
+    fetchPriceSuggestionRef.current = fetchPriceSuggestion
+  }, [fetchPriceSuggestion])
 
   if (verifyingShop) {
     return (
@@ -661,7 +706,7 @@ export default function SellPartPage() {
                 <GradingSection
                   onChange={(g) => {
                     setGrade(g || '')
-                    if (g) fetchPriceSuggestion(g)
+                    if (g) debouncedFetchPriceSuggestion(g)
                   }}
                   onVideoRecorded={(blob) => setVideoBlob(blob)}
                 />

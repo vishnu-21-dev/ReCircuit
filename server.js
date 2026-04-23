@@ -289,7 +289,7 @@ Format: {"brand": "...", "model": "...", "part": "..."}`
 
     let listingsRef = db.collection("listings");
     let snapshot = await listingsRef
-      .where("status", "==", "active")
+      .where("status", "==", "available")
       .get();
 
     const results = [];
@@ -328,7 +328,7 @@ app.post("/api/ai/price-suggest", async (req, res) => {
         "Authorization": `Bearer ${GROQ_KEY}`
       },
       body: JSON.stringify({
-        model: "llama-3.1-70b-versatile",
+        model: "llama-3.3-70b-versatile",
         messages: [{
           role: "user",
           content: `You are a pricing expert for electronics repair parts in India, specifically Bangalore.
@@ -377,6 +377,56 @@ Respond ONLY with a JSON object, no markdown, no backticks, no explanation:
   } catch (err) {
     console.error("Price suggestion error:", err);
     return res.status(500).json({ error: "Price suggestion failed", details: err.message });
+  }
+});
+
+// ==================== AI VISUAL RECOGNITION ====================
+app.post("/api/ai/visual-recognition", async (req, res) => {
+  const { imageBase64, mimeType, partHint } = req.body;
+  if (!imageBase64) return res.status(400).json({ error: "imageBase64 required" });
+  try {
+    const geminiVisionURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+    const prompt = `You are an electronics repair parts expert. Analyze this image of an electronics part and respond in JSON only, no markdown, no explanation:
+{
+  "category": "Smartphones|Laptops|Home Appliances|Consumer Electronics",
+  "brand": "detected brand or empty string",
+  "model": "detected model or empty string",
+  "part": "Battery|Screen|Camera Module|Charging Port|Motherboard|Speaker|Keyboard|Trackpad|RAM|SSD/HDD|Cooling Fan|Hinge|Motor|Control Board|Compressor|Screen Panel|Mainboard|Power Board",
+  "grade": "A|B|C|D",
+  "gradeReason": "one sentence explanation of grade",
+  "confidence": "high|medium|low"
+}
+
+Grading criteria:
+- Grade A: Excellent, 90%+ intact, no visible damage, minimal wear
+- Grade B: Good, 70-90% intact, minor scratches or light wear
+- Grade C: Fair, 50-70% intact, visible damage, needs minor repair
+- Grade D: Parts only, below 50% condition, heavy damage or broken`;
+
+    const geminiRes = await fetch(geminiVisionURL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType || "image/jpeg", data: imageBase64 } }
+          ]
+        }]
+      })
+    });
+    const geminiData = await geminiRes.json();
+    if (!geminiRes.ok || !geminiData.candidates) {
+      console.error("Gemini vision error:", geminiData);
+      return res.status(500).json({ error: "Vision analysis failed", details: geminiData });
+    }
+    const rawText = geminiData.candidates[0].content.parts[0].text || "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    return res.json(parsed);
+  } catch (err) {
+    console.error("Visual recognition error:", err);
+    return res.status(500).json({ error: "Visual recognition failed", details: err.message });
   }
 });
 
