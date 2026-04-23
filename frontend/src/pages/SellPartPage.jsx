@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext'
 import { getShopByUid, createListing, getCompatibility, geminiPriceSuggest, geminiCompatSuggest, visualRecognizePart, detectFakeListing, verifyGrade } from '../api'
 import GradingSection from '../components/GradingSection'
 import { calculateCompletenessScore } from '../utils/listingScore'
-import compatibilityMap from '../data/compatibilityMap'
 
 // ── Data Maps ──────────────────────────────────────────────────────────────
 
@@ -235,6 +234,7 @@ export default function SellPartPage() {
   const [price, setPrice] = useState('')
   const [warranty, setWarranty] = useState('')
   const [compatibleModels, setCompatibleModels] = useState([])
+  const [suggestedModels, setSuggestedModels] = useState([])  // full AI suggestion list (render source)
   const [compatMode, setCompatMode] = useState(null) // 'manual' | 'suggest' | null
   const [description, setDescription] = useState('')
   const [priceSuggestion, setPriceSuggestion] = useState(null)
@@ -260,9 +260,9 @@ export default function SellPartPage() {
   const [gradeVerifyResult, setGradeVerifyResult] = useState(null)
   const [gradeVerifyLoading, setGradeVerifyLoading] = useState(false)
 
-  useEffect(() => { setBrand(''); setModel(''); setPart(''); setCompatibleModels([]); setCompatMode(null); setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [category])
-  useEffect(() => { setModel(''); setCompatibleModels([]); setCompatMode(null); setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [brand])
-  useEffect(() => { setCompatibleModels([]); setCompatMode(null); setCompatSuggesting(false); setCompatSuggestFailed(false); setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [model])
+  useEffect(() => { setBrand(''); setModel(''); setPart(''); setCompatibleModels([]); setSuggestedModels([]); setCompatMode(null); setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [category])
+  useEffect(() => { setModel(''); setCompatibleModels([]); setSuggestedModels([]); setCompatMode(null); setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [brand])
+  useEffect(() => { setCompatibleModels([]); setSuggestedModels([]); setCompatMode(null); setCompatSuggesting(false); setCompatSuggestFailed(false); setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [model])
   useEffect(() => { setPriceSuggestion(null); lastFetchedKeyRef.current = null }, [part])
 
   // Cleanup debounce timeout on unmount
@@ -562,136 +562,6 @@ export default function SellPartPage() {
                   <TextField id="model" label="Model" value={model} onChange={setModel} placeholder="e.g. Note 12 Pro, Galaxy Tab S9…" />
                 )
               )}
-
-              {/* ── Compatible Models Section ── */}
-              {model && (
-                <div className="mt-2">
-                  <h3 className="text-green-400 font-semibold text-lg mb-2">Compatible Models</h3>
-
-                  {/* Mode selection cards */}
-                  {!compatMode && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* Card 1: Manual */}
-                      <button
-                        type="button"
-                        onClick={() => setCompatMode('manual')}
-                        className="group relative flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-green-700/30 bg-gradient-to-br from-green-950/60 to-gray-900/60 backdrop-blur-md hover:border-green-500/50 hover:shadow-lg hover:shadow-green-900/20 transition-all duration-300 cursor-pointer"
-                      >
-                        <span className="w-11 h-11 rounded-full bg-green-600/20 flex items-center justify-center group-hover:bg-green-600/30 transition-colors">
-                          <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        </span>
-                        <span className="text-sm font-bold text-gray-200 group-hover:text-white">I know the compatible models</span>
-                        <span className="text-xs text-gray-500">Manually select from known matches</span>
-                      </button>
-
-                      {/* Card 2: Suggest */}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setCompatMode('suggest')
-                          setCompatSuggestFailed(false)
-                          if (compatibilityMap[model] && compatibilityMap[model].length > 0) {
-                            setCompatibleModels([...compatibilityMap[model]])
-                          } else {
-                            try {
-                              setCompatSuggesting(true)
-                              const suggested = await geminiCompatSuggest({ category, brand, model })
-                              setCompatibleModels(suggested || [])
-                            } catch (err) {
-                              console.error('compat suggest failed:', err)
-                              setCompatSuggestFailed(true)
-                              setCompatibleModels([])
-                            } finally {
-                              setCompatSuggesting(false)
-                            }
-                          }
-                        }}
-                        className="group relative flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-green-700/30 bg-gradient-to-br from-green-950/60 to-gray-900/60 backdrop-blur-md hover:border-green-500/50 hover:shadow-lg hover:shadow-green-900/20 transition-all duration-300 cursor-pointer"
-                      >
-                        <span className="w-11 h-11 rounded-full bg-green-600/20 flex items-center justify-center group-hover:bg-green-600/30 transition-colors">
-                          <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                        </span>
-                        <span className="text-sm font-bold text-gray-200 group-hover:text-white">Suggest compatible models for me</span>
-                        <span className="text-xs text-gray-500">Auto-fill from our compatibility data</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Manual mode: toggle buttons */}
-                  {compatMode === 'manual' && (
-                    <div className="rounded-2xl border border-green-700/30 bg-gradient-to-br from-green-950/40 to-gray-900/50 backdrop-blur-md p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Select compatible models</span>
-                        <button type="button" onClick={() => { setCompatMode(null); setCompatibleModels([]) }} className="text-xs text-gray-500 hover:text-green-400 transition-colors">← Change mode</button>
-                      </div>
-                      {compatibilityMap[model] && compatibilityMap[model].length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {compatibilityMap[model].map((m) => {
-                            const isSelected = compatibleModels.includes(m)
-                            return (
-                              <button
-                                key={m}
-                                type="button"
-                                onClick={() => setCompatibleModels(prev => isSelected ? prev.filter(x => x !== m) : [...prev, m])}
-                                className={`px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200 ${isSelected
-                                    ? 'bg-green-600 text-white border-green-500 shadow-md shadow-green-900/30'
-                                    : 'bg-white/10 text-gray-300 border-white/10 hover:border-green-500/40 hover:bg-white/15'
-                                  }`}
-                              >
-                                {m}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500 italic">No compatibility data available for this model. You can skip this.</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Suggest mode: auto-filled toggle buttons */}
-                  {compatMode === 'suggest' && (
-                    <div className="rounded-2xl border border-green-700/30 bg-gradient-to-br from-green-950/40 to-gray-900/50 backdrop-blur-md p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Suggested models</span>
-                        <button type="button" onClick={() => { setCompatMode(null); setCompatibleModels([]) }} className="text-xs text-gray-500 hover:text-green-400 transition-colors">← Change mode</button>
-                      </div>
-                      {compatSuggesting ? (
-                        <div className="mt-2 p-4 rounded-xl border border-amber-700/30 bg-amber-950/30 text-amber-400 text-sm font-medium animate-pulse">
-                          Getting compatibility suggestions...
-                        </div>
-                      ) : compatSuggestFailed || (!compatibilityMap[model]?.length && !compatibleModels.length) ? (
-                        <p className="text-sm text-gray-500 italic">No compatibility data available for this model. You can skip this.</p>
-                      ) : (
-                        <>
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {compatibleModels.map((m) => {
-                              const isSelected = compatibleModels.includes(m)
-                              return (
-                                <button
-                                  key={m}
-                                  type="button"
-                                  onClick={() => setCompatibleModels(prev => isSelected ? prev.filter(x => x !== m) : [...prev, m])}
-                                  className={`px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200 ${isSelected
-                                    ? 'bg-green-600 text-white border-green-500 shadow-md shadow-green-900/30'
-                                    : 'bg-white/10 text-gray-300 border-white/10 hover:border-green-500/40 hover:bg-white/15'
-                                  }`}
-                                >
-                                  {m}
-                                </button>
-                              )
-                            })}
-                          </div>
-                          <p className="text-xs text-gray-500 flex items-center gap-1.5">
-                            <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            These are AI-suggested compatible models. You can deselect any.
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
@@ -700,9 +570,123 @@ export default function SellPartPage() {
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Specify the precise part component</h2>
               </div>
-              <SelectField id="part" label="Part Name" value={part} onChange={setPart} options={partsForCategory} placeholder="Select a part…" />
-              <div className="flex flex-col gap-2 -mx-6 sm:-mx-8 px-6 sm:px-8 py-6 bg-gray-900 rounded-2xl">
-                <h3 className="text-green-400 font-semibold text-lg">Part Condition Grading</h3>
+              <SelectField id="part" label="Part Name" value={part} onChange={(v) => { setPart(v); setCompatMode(null); setCompatibleModels([]); setSuggestedModels([]); setCompatSuggestFailed(false) }} options={partsForCategory} placeholder="Select a part…" />
+
+              {/* ── Compatible Models Section (part-specific) ── */}
+              {part && (
+                <div className="mt-1">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-1">Compatible Models for {part}</h3>
+                  <p className="text-xs text-gray-500 mb-3">Which other devices use the same <strong>{part}</strong> as {brand} {model}?</p>
+
+                  {/* Mode selection cards */}
+                  {!compatMode && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setCompatMode('manual')
+                          setCompatSuggestFailed(false)
+                          try {
+                            setCompatSuggesting(true)
+                            const suggested = await geminiCompatSuggest({ category, brand, model, part })
+                            setSuggestedModels(suggested || [])
+                            setCompatibleModels(suggested || [])  // all selected by default
+                          } catch (err) {
+                            console.error('compat suggest failed:', err)
+                            setCompatSuggestFailed(true)
+                            setSuggestedModels([])
+                            setCompatibleModels([])
+                          } finally {
+                            setCompatSuggesting(false)
+                          }
+                        }}
+                        className="group relative flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-brand hover:shadow-lg hover:shadow-brand/10 transition-all duration-300 cursor-pointer"
+                      >
+                        <span className="w-12 h-12 rounded-full bg-brand-50 flex items-center justify-center group-hover:bg-brand transition-colors">
+                          <svg className="w-6 h-6 text-brand group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </span>
+                        <span className="text-sm font-bold text-gray-900">I know the compatible models</span>
+                        <span className="text-xs text-gray-500">Select from AI-suggested matches</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setCompatMode('suggest')
+                          setCompatSuggestFailed(false)
+                          try {
+                            setCompatSuggesting(true)
+                            const suggested = await geminiCompatSuggest({ category, brand, model, part })
+                            setSuggestedModels(suggested || [])
+                            setCompatibleModels(suggested || [])  // all selected by default
+                          } catch (err) {
+                            console.error('compat suggest failed:', err)
+                            setCompatSuggestFailed(true)
+                            setSuggestedModels([])
+                            setCompatibleModels([])
+                          } finally {
+                            setCompatSuggesting(false)
+                          }
+                        }}
+                        className="group relative flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-amber-400 hover:shadow-lg hover:shadow-amber-400/10 transition-all duration-300 cursor-pointer"
+                      >
+                        <span className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center group-hover:bg-amber-400 transition-colors">
+                          <svg className="w-6 h-6 text-amber-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                        </span>
+                        <span className="text-sm font-bold text-gray-900">Suggest compatible models</span>
+                        <span className="text-xs text-gray-500">AI finds devices with the same {part}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Manual / Suggest results */}
+                  {compatMode && (
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50/50 p-5 mt-2">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                          {compatMode === 'manual' ? 'Select compatible models' : 'Suggested models'}
+                        </span>
+                        <button type="button" onClick={() => { setCompatMode(null); setCompatibleModels([]); setSuggestedModels([]) }} className="text-xs font-semibold text-gray-500 hover:text-brand transition-colors">← Change mode</button>
+                      </div>
+                      {compatSuggesting ? (
+                        <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold animate-pulse flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          Finding devices with the same {part}…
+                        </div>
+                      ) : compatSuggestFailed || !suggestedModels.length ? (
+                        <p className="text-sm text-gray-500 italic text-center p-4">No compatible devices found for this specific {part}. You can skip this step.</p>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {suggestedModels.map((m) => {
+                              const isSelected = compatibleModels.includes(m)
+                              return (
+                                <button
+                                  key={m}
+                                  type="button"
+                                  onClick={() => setCompatibleModels(prev => isSelected ? prev.filter(x => x !== m) : [...prev, m])}
+                                  className={`px-4 py-2 rounded-full text-sm font-semibold border transition-all duration-200 ${isSelected
+                                    ? 'bg-brand text-white border-brand shadow-md shadow-brand/20'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:border-brand/40 hover:bg-brand-50'
+                                  }`}
+                                >
+                                  {m}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <p className="text-xs text-gray-500 flex items-center justify-center gap-1.5 p-2 bg-white/60 rounded-lg">
+                            <svg className="w-4 h-4 text-brand shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Devices where the same <strong>{part}</strong> physically fits (AI-powered by Groq). Deselect any that don't apply.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 -mx-6 sm:-mx-8 px-6 sm:px-8 py-6 rounded-2xl">
                 <GradingSection
                   onChange={(g) => {
                     setGrade(g || '')
@@ -715,31 +699,39 @@ export default function SellPartPage() {
                 )}
               </div>
               {priceSuggestionLoading && (
-                <div className="mt-4 p-4 rounded-xl border border-green-700/30 bg-green-950/30 text-green-400 text-sm font-medium animate-pulse">
-                  Getting price suggestion...
+                <div className="mt-2 p-5 rounded-2xl border-2 border-brand/20 bg-brand-50 flex items-center justify-center gap-3 animate-pulse">
+                  <svg className="animate-spin h-5 w-5 text-brand" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  <span className="text-brand font-bold text-sm">Analyzing condition and market value...</span>
                 </div>
               )}
               {priceSuggestionError && !priceSuggestionLoading && (
-                <div className="mt-4 p-4 rounded-xl border border-red-700/30 bg-red-950/30 text-red-400 text-sm">
-                  <p className="font-semibold">Price suggestion failed</p>
-                  <p className="text-xs text-red-300 mt-1">{priceSuggestionError}</p>
-                  <p className="text-xs text-gray-400 mt-2">Please enter a price manually or try again.</p>
+                <div className="mt-2 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg>
+                    Price suggestion failed
+                  </p>
+                  <p className="text-xs text-red-600 mt-1">{priceSuggestionError}</p>
+                  <p className="text-xs text-gray-500 mt-2">Please enter a price manually below.</p>
                 </div>
               )}
               {priceSuggestion && !priceSuggestionLoading && (
-                <div className="mt-4 p-4 rounded-xl border border-green-700/30 bg-green-950/30 space-y-2">
-                  <p className="text-green-400 font-semibold text-sm uppercase tracking-widest">AI Price Suggestion</p>
-                  <p className="text-white font-bold text-xl">{priceSuggestion.range}</p>
-                  <p className="text-gray-400 text-sm">{priceSuggestion.reasoning}</p>
+                <div className="mt-2 p-5 rounded-2xl border-2 border-brand/30 bg-gradient-to-br from-brand-50 to-white shadow-[0_4px_20px_-4px_rgba(22,163,74,0.1)] space-y-3">
+                  <p className="text-brand font-bold text-xs uppercase tracking-widest flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    AI Price Suggestion
+                  </p>
+                  <p className="text-gray-900 font-extrabold text-3xl tracking-tight">{priceSuggestion.range}</p>
+                  <p className="text-gray-600 text-sm font-medium leading-relaxed">{priceSuggestion.reasoning}</p>
                   {priceSuggestion.marketNote && (
-                    <p className="text-gray-500 text-xs italic">{priceSuggestion.marketNote}</p>
+                    <p className="text-gray-500 text-xs italic bg-white/60 p-2 rounded-lg border border-gray-100">{priceSuggestion.marketNote}</p>
                   )}
                   <button
                     type="button"
                     onClick={() => setPrice(priceSuggestion.suggestedPrice?.toString() || '')}
-                    className="mt-2 px-4 py-2 rounded-lg bg-green-600/80 hover:bg-green-600 text-white text-sm font-semibold transition-colors border border-green-500/50"
+                    className="mt-2 px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-bold transition-all duration-200 shadow-md shadow-brand/20 flex items-center gap-2"
                   >
-                    Use suggested price
+                    <span>Use suggested price</span>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                   </button>
                 </div>
               )}

@@ -95,11 +95,11 @@ export const aiSearch = (query) =>
 export const geminiPriceSuggest = (data) =>
   apiFetch('/ai/price-suggest', { method: 'POST', body: JSON.stringify(data) });
 
-export async function geminiCompatSuggest({ category, brand, model }) {
+export async function geminiCompatSuggest({ category, brand, model, part }) {
   const res = await fetch(`${API_BASE}/ai/compat-suggest`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ category, brand, model })
+    body: JSON.stringify({ category, brand, model, part })
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'compat-suggest failed');

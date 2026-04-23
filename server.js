@@ -22,26 +22,47 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemi
 const GROQ_KEY = process.env.GROQ_KEY;
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-// ==================== AI COMPAT SUGGEST ====================
+// ==================== AI COMPAT SUGGEST (GROQ) ====================
 app.post("/api/ai/compat-suggest", async (req, res) => {
-  const { category, brand, model } = req.body;
-  if (!category || !brand || !model) {
-    return res.status(400).json({ error: "Missing category, brand, or model" });
+  const { category, brand, model, part } = req.body;
+  if (!category || !brand || !model || !part) {
+    return res.status(400).json({ error: "Missing category, brand, model, or part" });
   }
-  const prompt = `You are a consumer electronics compatibility expert. Given a ${category} part from ${brand} ${model}, list up to 8 other specific device models (from any brand) that are commonly compatible with parts from this device. Return ONLY a JSON array of strings, no explanation, no markdown, no backticks. Example: ["Samsung S21", "Samsung S22", "OnePlus 9"]`;
+  const prompt = `You are a consumer electronics repair parts compatibility expert.
+
+TASK: Given a specific part — "${part}" — from a ${category} device "${brand} ${model}", list up to 6 other device models where this EXACT SAME "${part}" part can physically fit and work as a drop-in replacement.
+
+CRITICAL RULES:
+- You are matching compatibility for ONE SPECIFIC PART: the "${part}".
+- A "${part}" from ${brand} ${model} can ONLY fit in devices that share the exact same "${part}" hardware — same physical dimensions, same connector type, same ribbon cable, same mounting points.
+- ONLY list devices from the SAME BRAND unless the devices literally share the same chassis/internal design (e.g., Redmi Note 13 Pro and Poco X6 Pro are rebadged versions of each other).
+- For laptops: a ${brand} ${model} ${part} will almost NEVER fit a laptop from a different brand. Even within ${brand}, only very closely related models (same generation, same chassis) share parts.
+- For smartphones: ${brand} sometimes reuses the same ${part} across 1-2 generations or regional variants of the same phone. Cross-brand is extremely rare.
+- Do NOT guess. If you are unsure, return fewer results or an empty array. Accuracy is more important than quantity.
+- NEVER include devices from a completely different brand family.
+
+Return ONLY a JSON array of strings. No explanation, no markdown, no backticks. If no compatible models exist, return [].
+Example for "Battery" from "Lenovo LOQ 15": ["Lenovo LOQ 15IRH8", "Lenovo LOQ 15AHP9"]`;
   try {
-    const response = await fetch(GEMINI_URL, {
+    const groqRes = await fetch(GROQ_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_KEY}`
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2,
+        max_tokens: 512
       })
     });
-    const data = await response.json();
-    if (data.error) {
-      return res.status(429).json({ error: "Quota exceeded or API error", detail: data.error.message });
+    const groqData = await groqRes.json();
+    if (!groqRes.ok || !groqData.choices) {
+      console.error("Groq compat-suggest error:", groqData);
+      return res.status(503).json({ error: "AI unavailable", detail: groqData });
     }
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+    const raw = groqData?.choices?.[0]?.message?.content || "[]";
     const clean = raw.replace(/```json|```/g, "").trim();
     const models = JSON.parse(clean);
     res.json({ models });

@@ -70,10 +70,10 @@ const QUESTIONS = [
 ];
 
 const getGradeInfo = (score) => {
-  if (score >= 20) return { grade: 'A', text: 'Grade A - Excellent', color: 'bg-green-500/20 text-green-400 border-green-500/50' };
-  if (score >= 14) return { grade: 'B', text: 'Grade B - Good', color: 'bg-amber-500/20 text-amber-400 border-amber-500/50' };
-  if (score >= 8) return { grade: 'C', text: 'Grade C - Fair', color: 'bg-orange-500/20 text-orange-400 border-orange-500/50' };
-  return { grade: 'D', text: 'Grade D - Poor', color: 'bg-red-500/20 text-red-400 border-red-500/50' };
+  if (score >= 20) return { grade: 'A', text: 'Grade A - Excellent', color: 'bg-green-50 text-brand border-brand/30' };
+  if (score >= 14) return { grade: 'B', text: 'Grade B - Good', color: 'bg-amber-50 text-amber-600 border-amber-500/30' };
+  if (score >= 8) return { grade: 'C', text: 'Grade C - Fair', color: 'bg-orange-50 text-orange-600 border-orange-500/30' };
+  return { grade: 'D', text: 'Grade D - Poor', color: 'bg-red-50 text-red-600 border-red-500/30' };
 };
 
 const GradingSection = ({ onChange, onVideoRecorded }) => {
@@ -198,13 +198,13 @@ const GradingSection = ({ onChange, onVideoRecorded }) => {
   }, {});
 
   return (
-    <div className="space-y-8 bg-black/40 backdrop-blur-md rounded-2xl p-6 border border-white/10">
-      <div className="flex justify-between items-center bg-white/5 pb-4 border-b border-white/10 p-4 rounded-t-xl -mt-6 -mx-6 mb-6">
-        <h3 className="text-xl font-semibold text-white flex items-center gap-2">
-          <span className="text-green-500">❖</span> Condition Assessment
+    <div className="space-y-8 bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+      <div className="flex justify-between items-center bg-gray-50 pb-4 border-b border-gray-200 p-4 rounded-t-2xl -mt-6 -mx-6 mb-6">
+        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <span className="text-brand">❖</span> Condition Assessment
         </h3>
         {currentGradeInfo && (
-          <div className={`px-4 py-2 rounded-full border ${currentGradeInfo.color} font-medium flex items-center gap-2 animate-in fade-in zoom-in duration-300`}>
+          <div className={`px-4 py-2 rounded-full border ${currentGradeInfo.color} font-bold text-sm flex items-center gap-2 animate-in fade-in zoom-in duration-300`}>
             {currentGradeInfo.text}
           </div>
         )}
@@ -213,13 +213,13 @@ const GradingSection = ({ onChange, onVideoRecorded }) => {
       <div className="space-y-8">
         {Object.entries(sections).map(([sectionName, questions]) => (
           <div key={sectionName} className="space-y-4">
-            <h4 className="text-green-400 font-medium text-sm tracking-wider uppercase border-b border-white/5 pb-2">
+            <h4 className="text-gray-900 font-bold text-xs tracking-wider uppercase border-b border-gray-200 pb-2">
               {sectionName}
             </h4>
             
             {questions.map((q) => (
               <div key={q.id} className="space-y-3">
-                <p className="text-gray-200">{q.question}</p>
+                <p className="text-gray-700 font-medium text-sm">{q.question}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                   {q.options.map((opt) => {
                     const isSelected = answers[q.id] === opt.points;
@@ -228,10 +228,10 @@ const GradingSection = ({ onChange, onVideoRecorded }) => {
                         key={opt.label}
                         type="button"
                         onClick={() => handleSelect(q.id, opt.points)}
-                        className={`py-2 px-3 rounded-xl text-sm transition-all duration-300 border font-medium ${
+                        className={`py-2 px-3 rounded-xl text-sm transition-all duration-300 border font-semibold ${
                           isSelected 
-                            ? 'bg-green-600/90 text-white border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)] transform scale-[1.02]' 
-                            : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-gray-200'
+                            ? 'bg-brand text-white border-brand shadow-md shadow-brand/20 transform scale-[1.02]' 
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-brand/40 hover:bg-brand-50 hover:text-gray-900'
                         }`}
                       >
                         {opt.label}
@@ -246,29 +246,29 @@ const GradingSection = ({ onChange, onVideoRecorded }) => {
       </div>
 
       {!isComplete && (
-        <div className="mt-6 text-sm text-amber-400/80 italic text-center">
+        <div className="mt-6 text-sm text-gray-500 italic text-center">
           Please answer all {QUESTIONS.length} questions to calculate the part's grade.
           ({Object.keys(answers).length}/{QUESTIONS.length} completed)
         </div>
       )}
 
       {isComplete && (
-        <div className="mt-8 space-y-4 bg-black/60 rounded-2xl p-6 border border-white/10">
+        <div className="mt-8 space-y-4 bg-brand-50/50 rounded-2xl p-6 border border-brand/20">
           {videoConfirmed ? (
             <div className="text-center space-y-3">
-              <p className="text-green-400 font-medium">Video recorded successfully. Your listing is ready to submit.</p>
+              <p className="text-brand font-bold">Video recorded successfully. Your listing is ready to submit.</p>
             </div>
           ) : (
             <>
               <div className="flex flex-col items-start">
-                <h4 className="text-green-400 font-semibold text-lg mb-2">Part Verification Video</h4>
-                <p className="text-gray-400 text-sm">Record a short video of the part so buyers can verify its condition. Required to publish listing.</p>
+                <h4 className="text-brand font-bold text-lg mb-2">Part Verification Video</h4>
+                <p className="text-gray-600 text-sm">Record a short video of the part so buyers can verify its condition. Required to publish listing.</p>
               </div>
 
               {!recording && !recordedBlob && (
                 <button
                   onClick={startRecording}
-                  className="w-full py-3 px-4 bg-green-600/90 hover:bg-green-600 text-white rounded-xl font-medium transition-all duration-300 border border-green-500/50 hover:shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+                  className="w-full py-3 px-4 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold transition-all duration-300 border border-brand shadow-md shadow-brand/20"
                 >
                   Start Recording
                 </button>
@@ -276,7 +276,7 @@ const GradingSection = ({ onChange, onVideoRecorded }) => {
 
               {recording && (
                 <div className="space-y-4">
-                  <div className="relative w-full aspect-video bg-black/80 rounded-xl overflow-hidden border border-white/10">
+                  <div className="relative w-full aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-inner">
                     <video
                       ref={videoRef}
                       autoPlay
@@ -285,10 +285,10 @@ const GradingSection = ({ onChange, onVideoRecorded }) => {
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-green-400 font-medium">Recording... {countdown}s remaining</p>
+                    <p className="text-brand font-bold">Recording... {countdown}s remaining</p>
                     <button
                       onClick={stopRecording}
-                      className="py-2 px-6 bg-red-600/80 hover:bg-red-600 text-white rounded-xl font-medium transition-all duration-300 border border-red-500/50"
+                      className="py-2 px-6 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-all duration-300 shadow-md shadow-red-500/20"
                     >
                       Stop Recording
                     </button>
@@ -298,7 +298,7 @@ const GradingSection = ({ onChange, onVideoRecorded }) => {
 
               {recordedBlob && !recording && (
                 <div className="space-y-4">
-                  <div className="relative w-full aspect-video bg-black/80 rounded-xl overflow-hidden border border-white/10">
+                  <div className="relative w-full aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-inner">
                     <video
                       src={previewUrl}
                       controls
@@ -308,13 +308,13 @@ const GradingSection = ({ onChange, onVideoRecorded }) => {
                   <div className="flex gap-3">
                     <button
                       onClick={reRecord}
-                      className="flex-1 py-2 px-4 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl font-medium transition-all duration-300 border border-white/10"
+                      className="flex-1 py-2 px-4 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-bold transition-all duration-300 border border-gray-300 shadow-sm"
                     >
                       Re-record
                     </button>
                     <button
                       onClick={confirmVideo}
-                      className="flex-1 py-2 px-4 bg-green-600/90 hover:bg-green-600 text-white rounded-xl font-medium transition-all duration-300 border border-green-500/50 hover:shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+                      className="flex-1 py-2 px-4 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold transition-all duration-300 shadow-md shadow-brand/20"
                     >
                       Use this video
                     </button>
