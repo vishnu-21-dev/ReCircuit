@@ -1,0 +1,81 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // Helper function to verify admin role
+    function isAdmin() {
+      return request.auth != null 
+        && exists(/databases/$(database)/documents/roles/$(request.auth.uid))
+        && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /shops/{shopId} {
+      // Anyone can read approved shops. (Also allowing the owner or admin to read their own shop statuses).
+      allow read: if resource.data.status == 'approved' 
+                  || (request.auth != null && request.auth.uid == resource.data.uid)
+                  || isAdmin();
+                  
+      // Only the shop owner can create their own shop
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      
+      // Only the shop owner can update their shop (without touching status fields), OR an admin can fully update it
+      allow update: if request.auth != null && (
+        (request.auth.uid == resource.data.uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'rejectionReason', 'verified']))
+        || isAdmin()
+      );
+      
+      allow delete: if isAdmin(); // Optional, safe default based on lack of user delete requirements
+    }
+
+    match /listings/{listingId} {
+      // Anyone authenticated can read listings
+      allow read: if request.auth != null;
+      
+      // Only the seller can create, update, or delete their own listings
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.sellerId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.sellerId;
+    }
+
+    match /requests/{requestId} {
+      // Only authenticated users can create a request mapped to themselves
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.buyerId;
+      
+      // Only the buyer who created it can read or cancel (delete/update) their own request
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.buyerId;
+    }
+
+    match /matches/{matchId} {
+      // Only the buyer or seller involved can read a match
+      allow read: if request.auth != null && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId);
+      
+      // Only the system (backend service account) can create matches. Admin SDK bypasses security rules entirely.
+      allow create: if false;
+      allow update, delete: if false; 
+
+      match /messages/{messageId} {
+        // Only the buyer or seller in the parent match can read or write messages
+        allow read, write: if request.auth != null && (
+          request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.buyerId ||
+          request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.sellerId
+        );
+      }
+    }
+
+    match /roles/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null;
+    }
+    
+    match /compatibility/{document} {
+      // Anyone can read the static compatibility mapping device data
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Explicit global reject for unmapped collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

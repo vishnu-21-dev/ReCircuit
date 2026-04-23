@@ -1,1 +1,8 @@
+<<<<<<< HEAD
 node_modules
+=======
+node_modules/
+.env
+serviceAccountKey.json
+.DS_Store
+>>>>>>> master

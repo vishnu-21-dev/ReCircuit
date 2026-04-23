@@ -1,0 +1,7 @@
+services:
+  - name: firebase
+    type: database
+    provider: firebase
+    config:
+      projectId: ideathon2026-ab2cf
+      credentials: ./serviceAccountKey.json
