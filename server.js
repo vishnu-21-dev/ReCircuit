@@ -358,23 +358,38 @@ app.post("/api/ai/price-suggest", async (req, res) => {
         model: "llama-3.3-70b-versatile",
         messages: [{
           role: "user",
-          content: `You are a pricing expert for electronics repair parts in India, specifically Bangalore.
-A seller wants to list the following part:
+          content: `You are a pricing expert for USED, SALVAGED electronics repair parts in India (Bangalore local repair market).
+
+A seller wants to list this PULLED/HARVESTED second-hand part:
 - Category: ${category}
 - Brand: ${brand}
 - Model: ${model}
 - Part: ${part}
 - Condition Grade: ${grade} (${gradeLabel})
 
-Suggest a fair market price in Indian Rupees for this used spare part in the Indian repair market.
-Consider that this is a second-hand part sold by a local repair shop, not a brand new OEM part.
+CRITICAL PRICING RULES — follow these strictly:
+1. These are SALVAGED parts pulled from old/dead devices, NOT brand-new OEM replacements. Price them accordingly.
+2. The buyer alternative is buying a BRAND NEW aftermarket or OEM part. Your suggested price MUST be dramatically lower than a new part — otherwise the buyer has zero reason to buy used.
+3. Use these discount ranges off the NEW aftermarket replacement price:
+   - Grade A (Excellent): 30-45% of new part price
+   - Grade B (Good): 20-35% of new part price
+   - Grade C (Fair): 10-25% of new part price
+   - Grade D (Poor/Parts-only): 5-15% of new part price
+4. For common parts like batteries, screens, charging ports — prices should be VERY low because new aftermarket replacements are cheap and widely available.
+5. Think like a Bangalore SP Road / local repair market vendor. These are cash-and-carry salvage parts, not retail products.
+6. The price must make a buyer think "this is a steal compared to buying new" — that's the whole point of a used parts marketplace.
+
+Example calibration:
+- A Grade A iPhone 13 battery should be around Rs. 200-400 (new aftermarket is ~Rs. 800-1200)
+- A Grade B Samsung S23 screen should be around Rs. 1500-2500 (new aftermarket is ~Rs. 6000-10000)
+- A Grade C laptop RAM stick (8GB) should be around Rs. 300-600 (new is ~Rs. 1800-2500)
 
 Respond ONLY with a JSON object, no markdown, no backticks, no explanation:
 {
-  "suggestedPrice": <number, the single best price in rupees as integer>,
-  "range": "<string, e.g. Rs. 800 - Rs. 1200>",
-  "reasoning": "<1-2 sentences explaining the price>",
-  "marketNote": "<optional 1 sentence about market conditions or tips>"
+  "suggestedPrice": <number, the single best price in rupees as integer — keep it LOW>,
+  "range": "<string, e.g. Rs. 200 - Rs. 400>",
+  "reasoning": "<1-2 sentences explaining why this price is attractive vs buying new>",
+  "marketNote": "<1 sentence: what a new replacement costs, so the buyer sees the savings>"
 }`
         }],
         temperature: 0.3,
@@ -582,7 +597,17 @@ Part details: ${category} ${brand} ${model} ${part}`;
 app.post("/api/matches", async (req, res) => {
     try {
         const data = req.body;
-        const docRef = await db.collection("matches").add({
+        
+        // Fetch listing if we have a listingId to extract AI metadata
+        let listingData = {};
+        if (data.listingId) {
+            const listingSnap = await db.collection("listings").doc(data.listingId).get();
+            if (listingSnap.exists) {
+                listingData = listingSnap.data();
+            }
+        }
+
+        const matchDoc = {
             requestId: data.requestId,
             listingId: data.listingId || null,
             buyerId: data.buyerId,
@@ -590,11 +615,22 @@ app.post("/api/matches", async (req, res) => {
             part: data.part || 'Component',
             partName: data.partName || data.part || 'Component',
             modelName: data.modelName || 'Unknown',
+            price: listingData.price || data.price || null,
             status: data.status || "pending",
+            
+            // AI metadata copied from listing
+            videoUrl: listingData.videoUrl || null,
+            aiPriceSuggestion: listingData.aiPriceSuggestion || null,
+            aiGradeVerifyResult: listingData.aiGradeVerifyResult || null,
+            aiFakeCheckResult: listingData.aiFakeCheckResult || null,
+            aiRecognitionResult: listingData.aiRecognitionResult || null,
+            
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-        });
-        res.json({ id: docRef.id, ...data });
+        };
+
+        const docRef = await db.collection("matches").add(matchDoc);
+        res.json({ id: docRef.id, ...matchDoc });
     } catch (error) {
         console.error("Error creating match:", error);
         res.status(500).json({ error: error.message });

@@ -5,68 +5,7 @@ import { getShopByUid, createListing, getCompatibility, geminiPriceSuggest, gemi
 import GradingSection from '../components/GradingSection'
 import { calculateCompletenessScore } from '../utils/listingScore'
 
-// ── Data Maps ──────────────────────────────────────────────────────────────
-
-const MODELS = {
-  Smartphones: {
-    Samsung: ['S22', 'S23', 'S24', 'A53', 'A54', 'M31', 'Z Fold 5', 'Z Flip 5'],
-    Apple: ['iPhone 11', 'iPhone 12', 'iPhone 13', 'iPhone 14', 'iPhone 15'],
-    OnePlus: ['9', '9R', '10 Pro', '11', '12', 'Nord CE', 'Nord 2'],
-    Realme: ['GT Neo', 'Narzo 50', '9 Pro'],
-    Xiaomi: ['Redmi Note 12', '13 Pro', 'Poco X5'],
-    Oppo: ['Reno 8', 'F21 Pro', 'Find X5'],
-    Vivo: ['V27', 'X90', 'Y100']
-  },
-  Laptops: {
-    Lenovo: ['LOQ', 'IdeaPad 3', 'ThinkPad E14', 'Legion 5'],
-    Dell: ['XPS 13', 'XPS 15', 'Inspiron 15', 'Latitude 5420', 'Alienware m15'],
-    HP: ['Pavilion', 'Envy 13', 'Spectre x360', 'Omen 15'],
-    Asus: ['ROG Zephyrus', 'TUF Dash', 'ZenBook 14', 'VivoBook'],
-    Acer: ['Nitro 5', 'Predator Helios', 'Swift 3', 'Aspire 5'],
-    Apple: ['MacBook Air M1', 'MacBook Air M2', 'MacBook Pro M2', 'MacBook Pro M3']
-  },
-  'Home Appliances': {
-    LG: ['Air Conditioner', 'Refrigerator', 'Washing Machine', 'Microwave Oven', 'Dishwasher', 'Water Purifier'],
-    Samsung: ['Air Conditioner', 'Refrigerator', 'Washing Machine', 'Microwave Oven', 'Dishwasher', 'Water Purifier'],
-    Whirlpool: ['Air Conditioner', 'Refrigerator', 'Washing Machine', 'Microwave Oven'],
-    Bosch: ['Refrigerator', 'Washing Machine', 'Microwave Oven', 'Dishwasher'],
-    IFB: ['Air Conditioner', 'Washing Machine', 'Microwave Oven', 'Dishwasher'],
-    Godrej: ['Air Conditioner', 'Refrigerator', 'Washing Machine'],
-    Panasonic: ['Air Conditioner', 'Refrigerator', 'Washing Machine'],
-    Haier: ['Air Conditioner', 'Refrigerator', 'Washing Machine'],
-    Voltas: ['Air Conditioner', 'Refrigerator', 'Air Cooler', 'Water Purifier'],
-    'Blue Star': ['Air Conditioner', 'Refrigerator', 'Air Cooler', 'Water Purifier']
-  },
-  'Consumer Electronics': {
-    Sony: ['Television (TV)', 'Soundbar / Home Theater', 'Gaming Console', 'Digital Camera'],
-    LG: ['Television (TV)', 'Soundbar / Home Theater', 'Projector'],
-    Samsung: ['Television (TV)', 'Soundbar / Home Theater', 'Projector'],
-    Mi: ['Television (TV)', 'Soundbar / Home Theater', 'Smart Speaker'],
-    TCL: ['Television (TV)', 'Soundbar / Home Theater'],
-    Hisense: ['Television (TV)', 'Soundbar / Home Theater', 'Projector'],
-    Philips: ['Television (TV)', 'Soundbar / Home Theater', 'Smart Lighting'],
-    JBL: ['Soundbar / Home Theater', 'Portable Speaker', 'Smart Speaker'],
-    Bose: ['Soundbar / Home Theater', 'Headphones', 'Smart Speaker']
-  }
-}
-
-const BRANDS = {
-  Smartphones: Object.keys(MODELS.Smartphones),
-  Laptops: Object.keys(MODELS.Laptops),
-  'Home Appliances': Object.keys(MODELS['Home Appliances']),
-  'Consumer Electronics': Object.keys(MODELS['Consumer Electronics']),
-}
-
-const PARTS = {
-  Smartphones: ['Battery', 'Screen', 'Camera Module', 'Charging Port', 'Motherboard', 'Speaker', 'Microphone', 'Back Panel', 'Power Button', 'Earpiece'],
-  Laptops: ['Battery', 'Screen', 'Keyboard', 'Trackpad', 'RAM', 'SSD/HDD', 'Charging Port', 'Cooling Fan', 'Motherboard', 'Hinge'],
-  'Home Appliances': ['Motor', 'Control Board', 'Door Seal', 'Compressor', 'Thermostat', 'Pump', 'Drum', 'Water Inlet Valve', 'Heating Element', 'Condenser Coil', 'Blower Fan', 'Magnetron', 'Inverter Board', 'Water Filter Component', 'Drain Pump', 'Ice Maker Module'],
-  'Consumer Electronics': ['Screen Panel', 'Mainboard', 'Power Board', 'Backlight', 'Speaker', 'HDMI Port', 'Remote Sensor', 'T-Con Board', 'Wi-Fi Module', 'Antenna', 'Bluetooth Chip', 'Amplifier Board', 'Subwoofer Driver', 'Lens Assembly', 'Cooling Fan', 'Optical Drive Lens'],
-}
-
-
-
-const CATEGORIES = Object.keys(BRANDS)
+import { BRANDS, MODELS, PARTS, CATEGORIES } from '../utils/deviceData'
 
 // ── Shared Nav Header ──────────────────────────────────────────────────────
 
@@ -253,6 +192,7 @@ export default function SellPartPage() {
 
   // Visual Recognition & Fake Detection State
   const [recognitionImage, setRecognitionImage] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [recognitionLoading, setRecognitionLoading] = useState(false)
   const [recognitionResult, setRecognitionResult] = useState(null)
   const [fakeCheckResult, setFakeCheckResult] = useState(null)
@@ -382,9 +322,31 @@ export default function SellPartPage() {
       </div>
     )
   }
-
   const handleSubmit = async () => {
-    setToast(true)
+    setIsSubmitting(true)
+    let uploadedVideoUrl = null;
+
+    if (videoBlob) {
+      try {
+        const formData = new FormData();
+        formData.append('file', videoBlob);
+        formData.append('upload_preset', 'recircuit_chat'); // Using the same preset for simplicity
+
+        const res = await fetch('https://api.cloudinary.com/v1_1/dwgo0iak1/video/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (res.ok) {
+          uploadedVideoUrl = data.secure_url;
+        } else {
+          console.error("Video upload failed:", data);
+        }
+      } catch (err) {
+        console.error("Error uploading video:", err);
+      }
+    }
+
     try {
       await createListing({
         category,
@@ -399,14 +361,22 @@ export default function SellPartPage() {
         sellerId: currentUser.uid,
         shopName: shopData?.shopName || '',
         quantity: 1,
+        videoUrl: uploadedVideoUrl,
+        aiPriceSuggestion: priceSuggestion,
+        aiGradeVerifyResult: gradeVerifyResult,
+        aiFakeCheckResult: fakeCheckResult,
+        aiRecognitionResult: recognitionResult
       })
+      setToast(true)
       setTimeout(() => {
         setToast(false)
         navigate('/shop')
       }, 1500)
     } catch (error) {
       console.error('Error adding listing:', error)
-      setToast(false)
+      alert("Failed to submit listing. " + error.message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -1036,11 +1006,11 @@ export default function SellPartPage() {
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path fillRule="evenodd" d="M4.22 6.22a.75.75 0 011.06 0L8 8.94l2.72-2.72a.75.75 0 111.06 1.06l-3.25 3.25a.75.75 0 01-1.06 0L4.22 7.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>
               </button>
             ) : (
-              <button type="button" disabled={!canProceed()} onClick={handleSubmit}
-                className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${canProceed() ? 'bg-brand text-white hover:bg-brand-dark shadow-md shadow-brand/25 focus:ring-2 focus:ring-brand focus:ring-offset-2' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+              <button type="button" disabled={!canProceed() || isSubmitting} onClick={handleSubmit}
+                className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${canProceed() && !isSubmitting ? 'bg-brand text-white hover:bg-brand-dark shadow-md shadow-brand/25 focus:ring-2 focus:ring-brand focus:ring-offset-2' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
               >
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path fillRule="evenodd" d="M8 2a1 1 0 011 1v4h4a1 1 0 110 2H9v4a1 1 0 11-2 0V9H3a1 1 0 110-2h4V3a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                Post Listing
+                {isSubmitting ? 'Posting...' : 'Post Listing'}
               </button>
             )}
           </div>

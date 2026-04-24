@@ -254,6 +254,104 @@ export default function ChatPage() {
 
       {/* Message area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        
+        {/* AI Verification Report Pinned Message */}
+        {(matchData.videoUrl || matchData.aiPriceSuggestion || matchData.aiGradeVerifyResult || matchData.aiFakeCheckResult || matchData.aiRecognitionResult) && (
+          <div className="bg-black/40 border border-green-500/30 rounded-xl p-4 mb-6 shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full -translate-y-16 translate-x-16 pointer-events-none blur-2xl" />
+            
+            <div className="flex justify-between items-center mb-4 border-b border-green-500/20 pb-3">
+              <h2 className="text-green-400 font-extrabold flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                AI Verification Report
+              </h2>
+              <span className="text-xs text-green-300/70 border border-green-500/30 px-2 py-0.5 rounded-full bg-green-500/10">Trusted Data</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm relative z-10">
+              
+              {/* Left Column: Video & Recognition */}
+              <div className="space-y-3">
+                {matchData.videoUrl && (
+                  <div>
+                    <h3 className="text-gray-400 font-semibold mb-2 uppercase tracking-wide text-xs">Grading Video</h3>
+                    <video src={matchData.videoUrl} controls className="w-full rounded-lg border border-white/10 bg-black aspect-video object-contain" />
+                  </div>
+                )}
+                
+                {matchData.aiRecognitionResult && (
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                    <h3 className="text-gray-400 font-semibold mb-1 uppercase tracking-wide text-[10px]">Visual Recognition</h3>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white font-medium">{matchData.aiRecognitionResult.part}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                        matchData.aiRecognitionResult.confidence === 'High' ? 'bg-green-500/20 text-green-400' :
+                        matchData.aiRecognitionResult.confidence === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-orange-500/20 text-orange-400'
+                      }`}>{matchData.aiRecognitionResult.confidence} Match</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Insights */}
+              <div className="space-y-3">
+                {(matchData.price || matchData.aiPriceSuggestion) && (
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                    <h3 className="text-gray-400 font-semibold mb-1 uppercase tracking-wide text-[10px]">Pricing Logic</h3>
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-xs text-gray-300">Listing Price:</span>
+                      <span className="text-lg font-bold text-white">Rs. {matchData.price || 'N/A'}</span>
+                    </div>
+                    {matchData.aiPriceSuggestion && (
+                      <div className="border-t border-white/10 pt-2 mt-1 space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-xs text-gray-400">AI Suggested:</span>
+                          <span className="text-xs font-semibold text-green-400">{matchData.aiPriceSuggestion.range || 'Rs. ' + matchData.aiPriceSuggestion.suggestedPrice}</span>
+                        </div>
+                        {matchData.aiPriceSuggestion.reasoning && (
+                          <p className="text-[10px] text-gray-400 italic line-clamp-2">{matchData.aiPriceSuggestion.reasoning}</p>
+                        )}
+                        {matchData.aiPriceSuggestion.marketNote && (
+                          <p className="text-[10px] text-blue-300/80 bg-blue-500/10 p-1 rounded mt-1">{matchData.aiPriceSuggestion.marketNote}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {matchData.aiGradeVerifyResult && (
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                    <h3 className="text-gray-400 font-semibold mb-1 uppercase tracking-wide text-[10px]">Condition Grade</h3>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${matchData.aiGradeVerifyResult.match ? 'bg-green-500' : matchData.aiGradeVerifyResult.recommendation === 'downgrade' ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                      <span className="text-xs font-medium text-white">{matchData.aiGradeVerifyResult.match ? 'Grade Verified ✓' : 'Mismatch Detected'}</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">{matchData.aiGradeVerifyResult.reasoning}</p>
+                  </div>
+                )}
+
+                {matchData.aiFakeCheckResult && (
+                  <div className={`rounded-lg p-3 border ${
+                    matchData.aiFakeCheckResult.riskLevel === 'High' ? 'bg-red-500/10 border-red-500/30' :
+                    matchData.aiFakeCheckResult.riskLevel === 'Medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                    'bg-green-500/5 border-green-500/20'
+                  }`}>
+                    <h3 className="text-gray-400 font-semibold mb-1 uppercase tracking-wide text-[10px]">Trust Score</h3>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-white">Risk: <span className={matchData.aiFakeCheckResult.riskLevel === 'High' ? 'text-red-400' : matchData.aiFakeCheckResult.riskLevel === 'Medium' ? 'text-yellow-400' : 'text-green-400'}>{matchData.aiFakeCheckResult.riskLevel}</span></span>
+                      <span className="text-xs text-white font-bold">{matchData.aiFakeCheckResult.riskScore}/100</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <p className="text-[9px] text-center text-gray-500 mt-4 pt-2 border-t border-white/10">This report is automatically generated by ReCircuit AI during the listing process to ensure transparency.</p>
+          </div>
+        )}
+
         {messages.map((msg) => {
           const isMine = msg.senderId === currentUser?.uid;
           
