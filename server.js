@@ -14,7 +14,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const GEMINI_KEY = process.env.GEMINI_KEY;
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
@@ -260,26 +261,31 @@ app.post("/api/search/ai", async (req, res) => {
     const { query } = req.body;
     if (!query) return res.status(400).json({ error: "Query required" });
 
-    const geminiRes = await fetch(GEMINI_URL, {
+    const groqRes = await fetch(GROQ_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_KEY}`
+      },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `You are a search assistant for an electronics repair parts marketplace in India.
+        model: "llama-3.3-70b-versatile",
+        messages: [{
+          role: "user",
+          content: `You are a search assistant for an electronics repair parts marketplace in India.
 Extract the brand, model, and part name from this search query: "${query}"
 Respond ONLY with a JSON object, no markdown, no backticks, no explanation.
 Format: {"brand": "...", "model": "...", "part": "..."}`
-          }]
-        }]
+        }],
+        temperature: 0.2,
+        max_tokens: 256
       })
     });
 
-    const geminiData = await geminiRes.json();
-    console.log("Gemini raw response:", JSON.stringify(geminiData, null, 2));
+    const groqData = await groqRes.json();
+    console.log("Groq search response:", JSON.stringify(groqData, null, 2));
 
-    if (!geminiRes.ok || !geminiData.candidates) {
-      console.error("Gemini API error:", geminiData);
+    if (!groqRes.ok || !groqData.choices) {
+      console.error("Groq search error:", groqData);
       return res.json({
         results: [],
         parsed: { brand: "", model: "", part: "" },
@@ -289,14 +295,14 @@ Format: {"brand": "...", "model": "...", "part": "..."}`
       });
     }
 
-    const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const rawText = groqData?.choices?.[0]?.message?.content || "";
     const cleaned = rawText.replace(/```json|```/g, "").trim();
 
     let parsed = { brand: "", model: "", part: "" };
     try {
       parsed = JSON.parse(cleaned);
     } catch (e) {
-      console.error("Failed to parse Gemini JSON:", cleaned);
+      console.error("Failed to parse Groq JSON:", cleaned);
       return res.json({
         results: [],
         parsed,
@@ -324,7 +330,7 @@ Format: {"brand": "...", "model": "...", "part": "..."}`
       }
     });
 
-    return res.json({ results, parsed });
+    return res.json({ results, parsed, extractedIntent: parsed, aiUsed: true });
   } catch (err) {
     console.error("AI search error:", err);
     return res.status(500).json({ error: "AI search failed", details: err.message });
@@ -401,13 +407,12 @@ Respond ONLY with a JSON object, no markdown, no backticks, no explanation:
   }
 });
 
-// ==================== AI VISUAL RECOGNITION ====================
+// ==================== AI VISUAL RECOGNITION (GROQ VISION) ====================
 app.post("/api/ai/visual-recognition", async (req, res) => {
   const { imageBase64, mimeType, partHint } = req.body;
   if (!imageBase64) return res.status(400).json({ error: "imageBase64 required" });
   try {
-    const geminiVisionURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
-    const prompt = `You are an electronics repair parts expert. Analyze this image of an electronics part and respond in JSON only, no markdown, no explanation:
+    const prompt = `You are an electronics repair parts expert. Analyze this image of an electronics part and respond in JSON only, no markdown, no backticks, no explanation:
 {
   "category": "Smartphones|Laptops|Home Appliances|Consumer Electronics",
   "brand": "detected brand or empty string",
@@ -424,30 +429,152 @@ Grading criteria:
 - Grade C: Fair, 50-70% intact, visible damage, needs minor repair
 - Grade D: Parts only, below 50% condition, heavy damage or broken`;
 
-    const geminiRes = await fetch(geminiVisionURL, {
+    const mime = mimeType || "image/jpeg";
+    const groqRes = await fetch(GROQ_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_KEY}`
+      },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType || "image/jpeg", data: imageBase64 } }
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:${mime};base64,${imageBase64}` } }
           ]
-        }]
+        }],
+        temperature: 0.2,
+        max_tokens: 1024
       })
     });
-    const geminiData = await geminiRes.json();
-    if (!geminiRes.ok || !geminiData.candidates) {
-      console.error("Gemini vision error:", geminiData);
-      return res.status(500).json({ error: "Vision analysis failed", details: geminiData });
+    const groqData = await groqRes.json();
+    if (!groqRes.ok || !groqData.choices) {
+      console.error("Groq vision error:", groqData);
+      return res.status(500).json({ error: "Vision analysis failed", details: groqData });
     }
-    const rawText = geminiData.candidates[0].content.parts[0].text || "";
+    const rawText = groqData?.choices?.[0]?.message?.content || "";
     const cleaned = rawText.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned);
     return res.json(parsed);
   } catch (err) {
     console.error("Visual recognition error:", err);
     return res.status(500).json({ error: "Visual recognition failed", details: err.message });
+  }
+});
+
+// ==================== AI FAKE LISTING DETECTOR ====================
+app.post("/api/ai/detect-fake", async (req, res) => {
+  const { category, brand, model, part, grade, price, description } = req.body;
+  if (!part || !brand) return res.status(400).json({ error: "part and brand required" });
+  try {
+    const prompt = `You are an expert in detecting fake or suspicious electronics parts listings. Analyze this listing and respond in JSON only, no markdown, no backticks:
+
+{
+  "isFake": true|false,
+  "confidence": "high|medium|low",
+  "reasons": ["reason1", "reason2"],
+  "recommendation": "approve|flag|reject"
+}
+
+Listing details:
+- Category: ${category}
+- Brand: ${brand}
+- Model: ${model}
+- Part: ${part}
+- Grade: ${grade}
+- Price: ${price}
+- Description: ${description}
+
+Check for:
+- Unrealistically low prices for high-grade parts
+- Generic or suspicious descriptions
+- Inconsistent brand/model/part combinations
+- Common scam patterns in electronics parts market`;
+
+    const groqRes = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_KEY}`
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2,
+        max_tokens: 512
+      })
+    });
+    const groqData = await groqRes.json();
+    if (!groqRes.ok || !groqData.choices) {
+      console.error("Groq fake detect error:", groqData);
+      return res.status(500).json({ error: "Fake detection failed", details: groqData });
+    }
+    const rawText = groqData?.choices?.[0]?.message?.content || "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    res.json(parsed);
+  } catch (err) {
+    console.error("Fake detection error:", err);
+    res.status(500).json({ error: "Fake detection failed", details: err.message });
+  }
+});
+
+// ==================== AI GRADE VERIFICATION (GROQ VISION) ====================
+app.post("/api/ai/verify-grade", async (req, res) => {
+  const { imageBase64, category, brand, model, part, claimedGrade } = req.body;
+  if (!imageBase64 || !claimedGrade) return res.status(400).json({ error: "imageBase64 and claimedGrade required" });
+  try {
+    const prompt = `You are an electronics parts grading expert. Verify if this part matches the claimed grade "${claimedGrade}".
+
+Respond in JSON only, no markdown, no backticks:
+{
+  "verifiedGrade": "A|B|C|D",
+  "matchesClaimed": true|false,
+  "confidence": "high|medium|low",
+  "reasoning": "brief explanation"
+}
+
+Grading criteria:
+- Grade A: Excellent, 90%+ intact, no visible damage, minimal wear
+- Grade B: Good, 70-90% intact, minor scratches or light wear
+- Grade C: Fair, 50-70% intact, visible damage, needs minor repair
+- Grade D: Parts only, below 50% condition, heavy damage or broken
+
+Part details: ${category} ${brand} ${model} ${part}`;
+
+    const groqRes = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_KEY}`
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+          ]
+        }],
+        temperature: 0.2,
+        max_tokens: 1024
+      })
+    });
+    const groqData = await groqRes.json();
+    if (!groqRes.ok || !groqData.choices) {
+      console.error("Groq grade verify error:", groqData);
+      return res.status(500).json({ error: "Grade verification failed", details: groqData });
+    }
+    const rawText = groqData?.choices?.[0]?.message?.content || "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    res.json(parsed);
+  } catch (err) {
+    console.error("Grade verification error:", err);
+    res.status(500).json({ error: "Grade verification failed", details: err.message });
   }
 });
 
