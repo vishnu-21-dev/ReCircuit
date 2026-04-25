@@ -304,7 +304,7 @@ export default function HomeScreen() {
               'Secure payments & shipping tools',
             ]}
             buttonLabel="Start Selling Parts"
-            onClick={() => navigate('/shop')}
+            onClick={() => navigate('/sell')}
           />
         </section>
 

@@ -2,10 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getShopByUid, createListing, getCompatibility, geminiPriceSuggest, geminiCompatSuggest, visualRecognizePart, detectFakeListing, verifyGrade } from '../api'
+import AuthModal from '../components/AuthModal'
 import GradingSection from '../components/GradingSection'
 import { calculateCompletenessScore } from '../utils/listingScore'
 
-import { BRANDS, MODELS, PARTS, CATEGORIES } from '../utils/deviceData'
+import { BRANDS, MODELS, PARTS, CATEGORIES, getPartsForDevice } from '../utils/deviceData'
 
 // ── Shared Nav Header ──────────────────────────────────────────────────────
 
@@ -138,6 +139,7 @@ export default function SellPartPage() {
   const { currentUser } = useAuth()
   const [step, setStep] = useState(1)
   const [toast, setToast] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [verifyingShop, setVerifyingShop] = useState(true)
   const [shopStatus, setShopStatus] = useState(null)
   const [shopReason, setShopReason] = useState('')
@@ -145,7 +147,10 @@ export default function SellPartPage() {
 
   useEffect(() => {
     const verifyShop = async () => {
-      if (!currentUser) return;
+      if (!currentUser) {
+        setVerifyingShop(false);
+        return;
+      }
       try {
         const shopDoc = await getShopByUid(currentUser.uid)
         setShopStatus(shopDoc.status)
@@ -216,7 +221,7 @@ export default function SellPartPage() {
 
   const brandsForCategory = category ? BRANDS[category] || [] : []
   const modelsForBrand = category && brand && MODELS[category]?.[brand] ? MODELS[category][brand] : null
-  const partsForCategory = category ? PARTS[category] || [] : []
+  const partsForCategory = category ? getPartsForDevice(category, model) : []
 
   const canProceed = () => {
     switch (step) {
@@ -323,6 +328,10 @@ export default function SellPartPage() {
     )
   }
   const handleSubmit = async () => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
     setIsSubmitting(true)
     let uploadedVideoUrl = null;
 
@@ -347,6 +356,28 @@ export default function SellPartPage() {
       }
     }
 
+    let uploadedImageUrl = null;
+    if (recognitionImage) {
+      try {
+        const formData = new FormData();
+        formData.append('file', recognitionImage);
+        formData.append('upload_preset', 'recircuit_chat');
+
+        const res = await fetch('https://api.cloudinary.com/v1_1/dwgo0iak1/image/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (res.ok) {
+          uploadedImageUrl = data.secure_url;
+        } else {
+          console.error("Image upload failed:", data);
+        }
+      } catch (err) {
+        console.error("Error uploading image:", err);
+      }
+    }
+
     try {
       await createListing({
         category,
@@ -362,6 +393,7 @@ export default function SellPartPage() {
         shopName: shopData?.shopName || '',
         quantity: 1,
         videoUrl: uploadedVideoUrl,
+        imageUrl: uploadedImageUrl,
         aiPriceSuggestion: priceSuggestion,
         aiGradeVerifyResult: gradeVerifyResult,
         aiFakeCheckResult: fakeCheckResult,
@@ -1010,7 +1042,7 @@ export default function SellPartPage() {
                 className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${canProceed() && !isSubmitting ? 'bg-brand text-white hover:bg-brand-dark shadow-md shadow-brand/25 focus:ring-2 focus:ring-brand focus:ring-offset-2' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
               >
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path fillRule="evenodd" d="M8 2a1 1 0 011 1v4h4a1 1 0 110 2H9v4a1 1 0 11-2 0V9H3a1 1 0 110-2h4V3a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                {isSubmitting ? 'Posting...' : 'Post Listing'}
+                {isSubmitting ? 'Posting...' : 'List your part'}
               </button>
             )}
           </div>
@@ -1022,6 +1054,7 @@ export default function SellPartPage() {
       <footer className="border-t border-gray-100 py-6 px-6 text-center text-xs text-gray-400">
         <p>© 2026 ReCircuit · Giving electronics a second life ♻️</p>
       </footer>
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   )
 }

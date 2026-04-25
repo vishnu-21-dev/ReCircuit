@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import AuthModal from '../components/AuthModal'
 import { getRequests, createRequest, deleteRequest } from '../api'
-
-import { BRANDS, MODELS, PARTS, CATEGORIES, GRADES } from '../utils/deviceData'
+import { BRANDS, MODELS, PARTS, CATEGORIES, GRADES, getPartsForDevice } from '../utils/deviceData'
 
 // ── Shared Nav Header (matches HomeScreen) ─────────────────────────────────
 
@@ -207,9 +207,13 @@ export default function BuyerPage() {
 
   const [myRequests, setMyRequests] = useState([])
   const [requestsLoading, setRequestsLoading] = useState(true)
+  const [showAuthModal, setShowAuthModal] = useState(false)
 
   useEffect(() => {
-    if (!currentUser) return
+    if (!currentUser) {
+      setRequestsLoading(false)
+      return
+    }
     const fetchRequests = async () => {
       try {
         const data = await getRequests({ buyerId: currentUser.uid })
@@ -241,7 +245,7 @@ export default function BuyerPage() {
   // Derived data
   const brandsForCategory = category ? BRANDS[category] || [] : []
   const modelsForBrand = category && brand && MODELS[category]?.[brand] ? MODELS[category][brand] : null // null → free text
-  const partsForCategory = category ? PARTS[category] || [] : []
+  const partsForCategory = category ? getPartsForDevice(category, model) : []
 
   // Validation per step
   const canProceed = () => {
@@ -255,6 +259,10 @@ export default function BuyerPage() {
   }
 
   const handleSubmit = async (force = false) => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
     if (!force) setShowDuplicateWarning(false)
     try {
       const result = await createRequest({
@@ -538,7 +546,7 @@ export default function BuyerPage() {
                   <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                     <path d="M8 1a.75.75 0 01.75.75v5.5h5.5a.75.75 0 010 1.5h-5.5v5.5a.75.75 0 01-1.5 0v-5.5h-5.5a.75.75 0 010-1.5h5.5v-5.5A.75.75 0 018 1z" />
                   </svg>
-                  Submit Request
+                  Search Part
                 </button>
               )}
             </div>
@@ -553,6 +561,7 @@ export default function BuyerPage() {
       <footer className="border-t border-gray-100 py-6 px-6 text-center text-xs text-gray-400">
         <p>© 2026 ReCircuit · Giving electronics a second life ♻️</p>
       </footer>
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   )
 }

@@ -374,6 +374,7 @@ export default function BuyerResultsPage() {
         status: 'connected',
         // Pass AI data from listing
         videoUrl: listing.videoUrl || null,
+        imageUrl: listing.imageUrl || null,
         aiPriceSuggestion: listing.aiPriceSuggestion || null,
         aiGradeVerifyResult: listing.aiGradeVerifyResult || null,
         aiFakeCheckResult: listing.aiFakeCheckResult || null,

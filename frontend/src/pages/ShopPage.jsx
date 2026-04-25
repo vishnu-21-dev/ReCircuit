@@ -227,6 +227,7 @@ export default function ShopPage() {
         status: 'connected',
         // Pass AI data directly so server can store it
         videoUrl: matchingListing?.videoUrl || null,
+        imageUrl: matchingListing?.imageUrl || null,
         aiPriceSuggestion: matchingListing?.aiPriceSuggestion || null,
         aiGradeVerifyResult: matchingListing?.aiGradeVerifyResult || null,
         aiFakeCheckResult: matchingListing?.aiFakeCheckResult || null,

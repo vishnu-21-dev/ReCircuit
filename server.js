@@ -220,6 +220,12 @@ app.post("/api/listings", async (req, res) => {
             sellerId: data.sellerId || data.shopId,
             shopName: data.shopName || '',
             quantity: data.quantity || 1,
+            videoUrl: data.videoUrl || null,
+            imageUrl: data.imageUrl || null,
+            aiPriceSuggestion: data.aiPriceSuggestion || null,
+            aiGradeVerifyResult: data.aiGradeVerifyResult || null,
+            aiFakeCheckResult: data.aiFakeCheckResult || null,
+            aiRecognitionResult: data.aiRecognitionResult || null,
             status: "available",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -638,6 +644,7 @@ app.post("/api/matches", async (req, res) => {
             
             // AI metadata copied from listing or request body
             videoUrl: listingData.videoUrl || data.videoUrl || null,
+            imageUrl: listingData.imageUrl || data.imageUrl || null,
             aiPriceSuggestion: listingData.aiPriceSuggestion || data.aiPriceSuggestion || null,
             aiGradeVerifyResult: listingData.aiGradeVerifyResult || data.aiGradeVerifyResult || null,
             aiFakeCheckResult: listingData.aiFakeCheckResult || data.aiFakeCheckResult || null,

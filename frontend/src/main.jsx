@@ -49,28 +49,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/" element={<HomeScreen />} />
           <Route path="/login" element={<LoginPage />} />
 
+          {/* Unprotected Routes for now, check auth inside if needed */}
+          <Route path="/buyer" element={<BuyerPage />} />
+          <Route path="/sell" element={<SellPartPage />} />
+
           {/* Protected Routes */}
-          <Route
-            path="/buyer"
-            element={
-              <ProtectedRoute>
-                <BuyerPage />
-              </ProtectedRoute>
-            }
-          />
           <Route
             path="/shop"
             element={
               <ProtectedRoute>
                 <ShopPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/sell"
-            element={
-              <ProtectedRoute>
-                <SellPartPage />
               </ProtectedRoute>
             }
           />
