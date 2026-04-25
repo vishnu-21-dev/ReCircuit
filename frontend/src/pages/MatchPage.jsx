@@ -129,23 +129,29 @@ export default function MatchPage() {
             <div className="flex flex-col gap-4">
               <div className="flex justify-between items-start border-b border-gray-50 pb-3">
                 <span className="text-sm text-gray-500 font-medium">Part</span>
-                <span className="text-base font-bold text-gray-900 text-right">iPhone 12 Battery</span>
+                <span className="text-base font-bold text-gray-900 text-right">{matchData?.partName || matchData?.part || 'Component'}</span>
               </div>
               <div className="flex justify-between items-start border-b border-gray-50 pb-3">
-                <span className="text-sm text-gray-500 font-medium">Category</span>
-                <span className="text-sm font-semibold text-gray-800 bg-gray-100 px-2 py-0.5 rounded-md">Smartphones</span>
+                <span className="text-sm text-gray-500 font-medium">Model</span>
+                <span className="text-sm font-semibold text-gray-800 bg-gray-100 px-2 py-0.5 rounded-md">{matchData?.modelName || 'Unknown'}</span>
               </div>
               <div className="flex justify-between items-start border-b border-gray-50 pb-3">
-                <span className="text-sm text-gray-500 font-medium">Grade Required</span>
-                <span className="text-sm font-bold text-brand bg-brand-50 border border-brand/20 px-2 py-0.5 rounded-md">A - Excellent</span>
+                <span className="text-sm text-gray-500 font-medium">Grade</span>
+                <span className={`text-sm font-bold px-2 py-0.5 rounded-md border ${
+                  matchData?.grade === 'A' ? 'bg-green-50 text-green-700 border-green-200' :
+                  matchData?.grade === 'B' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                  matchData?.grade === 'C' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                  matchData?.grade === 'D' ? 'bg-red-50 text-red-700 border-red-200' :
+                  'bg-brand-50 text-brand border-brand/20'
+                }`}>{matchData?.grade ? `Grade ${matchData.grade}` : 'Not specified'}</span>
               </div>
               <div className="flex justify-between items-start border-b border-gray-50 pb-3">
-                <span className="text-sm text-gray-500 font-medium">Price Offered</span>
-                <span className="text-base font-bold text-gray-900 tracking-tight">Rs. 450</span>
+                <span className="text-sm text-gray-500 font-medium">Price</span>
+                <span className="text-base font-bold text-gray-900 tracking-tight">Rs. {matchData?.price || 'N/A'}</span>
               </div>
               <div className="flex justify-between items-start">
-                <span className="text-sm text-gray-500 font-medium">Posted</span>
-                <span className="text-sm text-gray-600 font-medium">2 mins ago</span>
+                <span className="text-sm text-gray-500 font-medium">Status</span>
+                <span className="text-sm text-gray-600 font-medium capitalize">{matchData?.status || 'Connected'}</span>
               </div>
             </div>
           </section>
@@ -161,7 +167,7 @@ export default function MatchPage() {
             </h2>
 
             <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-2xl font-extrabold text-gray-900 leading-none">GreenFix Electronics</h3>
+              <h3 className="text-2xl font-extrabold text-gray-900 leading-none">{matchData?.sellerName || 'Shop'}</h3>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-50 border border-brand/20 text-brand text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5">
                 <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M16.403 12.652a3 3 0 000-5.304 3 3 0 00-3.75-3.751 3 3 0 00-5.305 0 3 3 0 00-3.751 3.75 3 3 0 000 5.305 3 3 0 003.75 3.751 3 3 0 005.305 0 3 3 0 003.751-3.75zm-2.546-4.46a.75.75 0 00-1.214-.883l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.06l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
@@ -181,31 +187,37 @@ export default function MatchPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-4 text-sm text-gray-600 font-medium mb-6">
-              <div className="flex items-center gap-1.5 bg-yellow-50 px-2 py-1 rounded-md border border-yellow-100">
-                <span className="text-yellow-700 font-bold">4.7</span>
-                <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
+            {matchData?.sellerRating && (
+              <div className="flex items-center gap-4 text-sm text-gray-600 font-medium mb-6">
+                <div className="flex items-center gap-1.5 bg-yellow-50 px-2 py-1 rounded-md border border-yellow-100">
+                  <span className="text-yellow-700 font-bold">{matchData.sellerRating}</span>
+                  <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                  </svg>
+                </div>
+                <div className="w-1 h-1 rounded-full bg-gray-300" />
+                <span>{matchData?.sellerTrades || 0} trades</span>
               </div>
-              <div className="w-1 h-1 rounded-full bg-gray-300" />
-              <span>134 trades</span>
-            </div>
+            )}
 
             <div className="flex flex-col gap-3 text-sm text-gray-700 mb-6">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span>42 Brigade Road, Bangalore 560001</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-                <span className="font-semibold text-gray-900">9876543210</span>
-              </div>
+              {matchData?.sellerAddress && (
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>{matchData.sellerAddress}</span>
+                </div>
+              )}
+              {matchData?.sellerPhone && (
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  <span className="font-semibold text-gray-900">{matchData.sellerPhone}</span>
+                </div>
+              )}
             </div>
 
             <a href="#" className="inline-flex items-center justify-center w-full gap-2 px-6 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 text-brand font-bold text-sm border border-gray-200 transition-colors">
@@ -254,6 +266,88 @@ export default function MatchPage() {
             })}
           </div>
         </section>
+
+        {/* AI Verification Report */}
+        {(matchData?.videoUrl || matchData?.aiPriceSuggestion || matchData?.aiGradeVerifyResult || matchData?.aiFakeCheckResult || matchData?.aiRecognitionResult) && (
+          <section className="bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center gap-2 mb-5 border-b border-gray-700 pb-3">
+              <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <h2 className="text-sm font-bold text-green-400 uppercase tracking-widest">AI Verification Report</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left: Video & Recognition */}
+              <div className="space-y-3">
+                {matchData?.videoUrl && (
+                  <div>
+                    <h3 className="text-gray-400 text-xs font-semibold mb-2 uppercase">Grading Video</h3>
+                    <video src={matchData.videoUrl} controls className="w-full rounded-lg border border-gray-700 bg-black aspect-video" />
+                  </div>
+                )}
+                
+                {matchData?.aiRecognitionResult && (
+                  <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                    <h3 className="text-gray-400 text-xs font-semibold mb-2 uppercase">Visual Recognition</h3>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between"><span className="text-gray-500">Part:</span> <span className="text-white">{matchData.aiRecognitionResult.part}</span></div>
+                      {matchData.aiRecognitionResult.grade && (
+                        <div className="flex justify-between"><span className="text-gray-500">Detected Grade:</span> <span className="text-green-400 font-bold">{matchData.aiRecognitionResult.grade}</span></div>
+                      )}
+                      <div className="flex justify-between"><span className="text-gray-500">Confidence:</span> <span className="text-gray-300">{matchData.aiRecognitionResult.confidence}</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: AI Analysis */}
+              <div className="space-y-3">
+                {matchData?.aiPriceSuggestion && (
+                  <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                    <h3 className="text-gray-400 text-xs font-semibold mb-2 uppercase">AI Price Analysis</h3>
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-gray-500 text-sm">Listed:</span>
+                      <span className="text-white font-bold">Rs. {matchData.price || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between items-end border-t border-gray-700 pt-2">
+                      <span className="text-green-400 text-sm">AI Suggested:</span>
+                      <span className="text-green-400 font-bold">Rs. {matchData.aiPriceSuggestion.suggestedPrice || matchData.aiPriceSuggestion.range}</span>
+                    </div>
+                    {matchData.aiPriceSuggestion.reasoning && (
+                      <p className="text-gray-400 text-xs mt-2 italic">{matchData.aiPriceSuggestion.reasoning}</p>
+                    )}
+                  </div>
+                )}
+
+                {matchData?.aiGradeVerifyResult && (
+                  <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                    <h3 className="text-gray-400 text-xs font-semibold mb-2 uppercase">Grade Verification</h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`w-2 h-2 rounded-full ${matchData.aiGradeVerifyResult.matchesClaimed ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                      <span className="text-white text-sm">
+                        {matchData.aiGradeVerifyResult.matchesClaimed ? 'Verified' : 'Mismatch'}: {matchData.aiGradeVerifyResult.verifiedGrade}
+                      </span>
+                    </div>
+                    <p className="text-gray-400 text-xs">{matchData.aiGradeVerifyResult.reasoning}</p>
+                  </div>
+                )}
+
+                {matchData?.aiFakeCheckResult && (
+                  <div className={`rounded-lg p-3 border ${matchData.aiFakeCheckResult.isFake ? 'bg-red-900/20 border-red-700' : 'bg-gray-800 border-gray-700'}`}>
+                    <h3 className="text-gray-400 text-xs font-semibold mb-2 uppercase">Trust Check</h3>
+                    <div className="flex justify-between items-center">
+                      <span className={matchData.aiFakeCheckResult.isFake ? 'text-red-400' : 'text-green-400'}>
+                        {matchData.aiFakeCheckResult.isFake ? '⚠️ Suspicious' : '✓ Genuine'}
+                      </span>
+                      <span className="text-gray-400 text-xs">{matchData.aiFakeCheckResult.confidence}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {matchData?.status === 'completed' && currentUser?.uid === matchData?.buyerId && (
           <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">

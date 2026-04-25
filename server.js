@@ -607,23 +607,41 @@ app.post("/api/matches", async (req, res) => {
             }
         }
 
+        // Fetch seller shop details
+        const sellerId = data.sellerId || data.shopId;
+        let sellerData = {};
+        if (sellerId) {
+            const shopSnap = await db.collection("shops").where("uid", "==", sellerId).get();
+            if (!shopSnap.empty) {
+                sellerData = shopSnap.docs[0].data();
+            }
+        }
+
         const matchDoc = {
             requestId: data.requestId,
             listingId: data.listingId || null,
             buyerId: data.buyerId,
-            sellerId: data.sellerId || data.shopId,
+            sellerId: sellerId,
             part: data.part || 'Component',
             partName: data.partName || data.part || 'Component',
             modelName: data.modelName || 'Unknown',
+            grade: listingData.grade || data.grade || null,
             price: listingData.price || data.price || null,
             status: data.status || "pending",
             
-            // AI metadata copied from listing
-            videoUrl: listingData.videoUrl || null,
-            aiPriceSuggestion: listingData.aiPriceSuggestion || null,
-            aiGradeVerifyResult: listingData.aiGradeVerifyResult || null,
-            aiFakeCheckResult: listingData.aiFakeCheckResult || null,
-            aiRecognitionResult: listingData.aiRecognitionResult || null,
+            // Seller details for display
+            sellerName: sellerData.shopName || 'Unknown Shop',
+            sellerAddress: sellerData.area && sellerData.city ? `${sellerData.area}, ${sellerData.city}` : sellerData.address || null,
+            sellerPhone: sellerData.phone || null,
+            sellerRating: sellerData.rating || null,
+            sellerTrades: sellerData.tradesCompleted || 0,
+            
+            // AI metadata copied from listing or request body
+            videoUrl: listingData.videoUrl || data.videoUrl || null,
+            aiPriceSuggestion: listingData.aiPriceSuggestion || data.aiPriceSuggestion || null,
+            aiGradeVerifyResult: listingData.aiGradeVerifyResult || data.aiGradeVerifyResult || null,
+            aiFakeCheckResult: listingData.aiFakeCheckResult || data.aiFakeCheckResult || null,
+            aiRecognitionResult: listingData.aiRecognitionResult || data.aiRecognitionResult || null,
             
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()

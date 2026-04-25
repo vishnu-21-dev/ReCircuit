@@ -157,9 +157,23 @@ export default function ShopPage() {
         setLoading(true)
         const data = await getRequests()
         
-        const filteredData = shopData.categories?.length 
+        // Filter by category first
+        let filteredData = shopData.categories?.length 
           ? data.filter(req => shopData.categories.includes(req.category))
           : data;
+        
+        // Further filter: only show requests where seller has matching part in listings
+        // A request matches if: brand + model + part matches one of the seller's listings
+        if (listings.length > 0) {
+          filteredData = filteredData.filter(req => {
+            return listings.some(listing => {
+              const brandMatch = (listing.brand || '').toLowerCase() === (req.brand || '').toLowerCase()
+              const modelMatch = (listing.model || '').toLowerCase() === (req.model || '').toLowerCase()
+              const partMatch = (listing.part || '').toLowerCase() === (req.part || '').toLowerCase()
+              return brandMatch && modelMatch && partMatch
+            })
+          })
+        }
           
         setRequests(filteredData)
       } catch (error) {
@@ -169,7 +183,7 @@ export default function ShopPage() {
       }
     }
     fetchRequests()
-  }, [shopData])
+  }, [shopData, listings])
 
   const handleDeleteListing = async (listingId) => {
     if (!window.confirm('Delete this listing?')) return;
@@ -193,15 +207,30 @@ export default function ShopPage() {
   const handleMatch = async (req) => {
     if (!currentUser || !shopData) return
     try {
+      // Find matching listing from seller's inventory
+      const matchingListing = listings.find(l => 
+        (l.brand || '').toLowerCase() === (req.brand || '').toLowerCase() &&
+        (l.model || '').toLowerCase() === (req.model || '').toLowerCase() &&
+        (l.part || '').toLowerCase() === (req.part || '').toLowerCase()
+      )
+
       await createMatch({
         requestId: req.id,
-        listingId: null,
+        listingId: matchingListing?.id || null,
         buyerId: req.buyerId || req.uid || 'unknown_buyer',
         sellerId: currentUser.uid,
         part: req.part || 'Component',
         partName: req.part || 'Component',
         modelName: req.model || req.device || 'Unknown',
+        grade: matchingListing?.grade || req.grade || null,
+        price: matchingListing?.price || null,
         status: 'connected',
+        // Pass AI data directly so server can store it
+        videoUrl: matchingListing?.videoUrl || null,
+        aiPriceSuggestion: matchingListing?.aiPriceSuggestion || null,
+        aiGradeVerifyResult: matchingListing?.aiGradeVerifyResult || null,
+        aiFakeCheckResult: matchingListing?.aiFakeCheckResult || null,
+        aiRecognitionResult: matchingListing?.aiRecognitionResult || null,
       })
       setMatchedIds(prev => new Set(prev).add(req.id))
     } catch (err) {
@@ -382,7 +411,8 @@ export default function ShopPage() {
             <p className="text-gray-500 text-sm">Loading requests...</p>
           ) : requests.length === 0 ? (
             <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center flex flex-col items-center">
-              <p className="text-gray-500">No open buyer requests match your shop categories right now.</p>
+              <p className="text-gray-500">No open buyer requests match your current inventory.</p>
+              <p className="text-gray-400 text-sm mt-2">Requests will appear here when buyers search for parts you have listed.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

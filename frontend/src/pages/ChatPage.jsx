@@ -185,9 +185,21 @@ export default function ChatPage() {
     <div className="bg-gradient-to-br from-gray-950 via-green-950 to-gray-900 min-h-screen flex flex-col">
       {/* Top bar */}
       <div className="p-4 border-b border-white/10 bg-black/20">
-        <h1 className="text-green-400 font-bold text-xl">
-          Chat about {matchData.partName || matchData.part || 'Component'} {matchData.modelName ? `- ${matchData.modelName}` : ''}
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-green-400 font-bold text-xl">
+            Chat about {matchData.partName || matchData.part || 'Component'} {matchData.modelName ? `- ${matchData.modelName}` : ''}
+          </h1>
+          {matchData.grade && (
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+              matchData.grade === 'A' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+              matchData.grade === 'B' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+              matchData.grade === 'C' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+              'bg-red-500/20 text-red-400 border-red-500/30'
+            }`}>
+              Grade {matchData.grade}
+            </span>
+          )}
+        </div>
         <p className="text-gray-400 text-sm mt-1">Match ID: {matchId}</p>
       </div>
 
@@ -283,14 +295,37 @@ export default function ChatPage() {
                 
                 {matchData.aiRecognitionResult && (
                   <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                    <h3 className="text-gray-400 font-semibold mb-1 uppercase tracking-wide text-[10px]">Visual Recognition</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-white font-medium">{matchData.aiRecognitionResult.part}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                        matchData.aiRecognitionResult.confidence === 'High' ? 'bg-green-500/20 text-green-400' :
-                        matchData.aiRecognitionResult.confidence === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-orange-500/20 text-orange-400'
-                      }`}>{matchData.aiRecognitionResult.confidence} Match</span>
+                    <h3 className="text-gray-400 font-semibold mb-2 uppercase tracking-wide text-[10px]">Visual Recognition</h3>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 text-xs">Detected Part:</span>
+                        <span className="text-white font-medium text-sm">{matchData.aiRecognitionResult.part}</span>
+                      </div>
+                      {(matchData.aiRecognitionResult.brand || matchData.aiRecognitionResult.model) && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400 text-xs">Device:</span>
+                          <span className="text-white text-xs">{matchData.aiRecognitionResult.brand} {matchData.aiRecognitionResult.model}</span>
+                        </div>
+                      )}
+                      {matchData.aiRecognitionResult.grade && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400 text-xs">Detected Grade:</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                            matchData.aiRecognitionResult.grade === 'A' ? 'bg-green-500/20 text-green-400' :
+                            matchData.aiRecognitionResult.grade === 'B' ? 'bg-yellow-500/20 text-yellow-400' :
+                            matchData.aiRecognitionResult.grade === 'C' ? 'bg-orange-500/20 text-orange-400' :
+                            'bg-red-500/20 text-red-400'
+                          }`}>Grade {matchData.aiRecognitionResult.grade}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-1 border-t border-white/10 mt-2">
+                        <span className="text-gray-500 text-[10px]">AI Confidence:</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                          matchData.aiRecognitionResult.confidence === 'high' ? 'bg-green-500/20 text-green-400' :
+                          matchData.aiRecognitionResult.confidence === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-orange-500/20 text-orange-400'
+                        }`}>{matchData.aiRecognitionResult.confidence}</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -300,25 +335,29 @@ export default function ChatPage() {
               <div className="space-y-3">
                 {(matchData.price || matchData.aiPriceSuggestion) && (
                   <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                    <h3 className="text-gray-400 font-semibold mb-1 uppercase tracking-wide text-[10px]">Pricing Logic</h3>
-                    <div className="flex justify-between items-end mb-2">
-                      <span className="text-xs text-gray-300">Listing Price:</span>
-                      <span className="text-lg font-bold text-white">Rs. {matchData.price || 'N/A'}</span>
-                    </div>
-                    {matchData.aiPriceSuggestion && (
-                      <div className="border-t border-white/10 pt-2 mt-1 space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-xs text-gray-400">AI Suggested:</span>
-                          <span className="text-xs font-semibold text-green-400">{matchData.aiPriceSuggestion.range || 'Rs. ' + matchData.aiPriceSuggestion.suggestedPrice}</span>
-                        </div>
-                        {matchData.aiPriceSuggestion.reasoning && (
-                          <p className="text-[10px] text-gray-400 italic line-clamp-2">{matchData.aiPriceSuggestion.reasoning}</p>
-                        )}
-                        {matchData.aiPriceSuggestion.marketNote && (
-                          <p className="text-[10px] text-blue-300/80 bg-blue-500/10 p-1 rounded mt-1">{matchData.aiPriceSuggestion.marketNote}</p>
-                        )}
+                    <h3 className="text-gray-400 font-semibold mb-2 uppercase tracking-wide text-[10px]">Pricing Analysis</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-end">
+                        <span className="text-xs text-gray-300">Listed Price:</span>
+                        <span className="text-lg font-bold text-white">Rs. {matchData.price || 'N/A'}</span>
                       </div>
-                    )}
+                      {matchData.aiPriceSuggestion && (
+                        <>
+                          <div className="flex justify-between items-end border-t border-white/10 pt-2">
+                            <span className="text-xs text-green-300">AI Suggested:</span>
+                            <span className="text-base font-bold text-green-400">
+                              Rs. {matchData.aiPriceSuggestion.suggestedPrice || matchData.aiPriceSuggestion.range}
+                            </span>
+                          </div>
+                          {matchData.aiPriceSuggestion.reasoning && (
+                            <p className="text-[10px] text-gray-400 italic bg-white/5 p-1.5 rounded">{matchData.aiPriceSuggestion.reasoning}</p>
+                          )}
+                          {matchData.aiPriceSuggestion.marketNote && (
+                            <p className="text-[10px] text-blue-300/80 bg-blue-500/10 p-1.5 rounded">{matchData.aiPriceSuggestion.marketNote}</p>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -326,24 +365,41 @@ export default function ChatPage() {
                   <div className="bg-white/5 rounded-lg p-3 border border-white/10">
                     <h3 className="text-gray-400 font-semibold mb-1 uppercase tracking-wide text-[10px]">Condition Grade</h3>
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${matchData.aiGradeVerifyResult.match ? 'bg-green-500' : matchData.aiGradeVerifyResult.recommendation === 'downgrade' ? 'bg-yellow-500' : 'bg-red-500'}`} />
-                      <span className="text-xs font-medium text-white">{matchData.aiGradeVerifyResult.match ? 'Grade Verified ✓' : 'Mismatch Detected'}</span>
+                      <span className={`w-2 h-2 rounded-full ${matchData.aiGradeVerifyResult.matchesClaimed ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                      <span className="text-xs font-medium text-white">
+                        {matchData.aiGradeVerifyResult.matchesClaimed 
+                          ? `Grade Verified ✓ (${matchData.aiGradeVerifyResult.verifiedGrade})` 
+                          : `Grade Mismatch (Claimed: ${matchData.grade}, AI: ${matchData.aiGradeVerifyResult.verifiedGrade})`}
+                      </span>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">{matchData.aiGradeVerifyResult.reasoning}</p>
+                    <p className="text-[10px] text-gray-500 mt-1">Confidence: {matchData.aiGradeVerifyResult.confidence}</p>
                   </div>
                 )}
 
                 {matchData.aiFakeCheckResult && (
                   <div className={`rounded-lg p-3 border ${
-                    matchData.aiFakeCheckResult.riskLevel === 'High' ? 'bg-red-500/10 border-red-500/30' :
-                    matchData.aiFakeCheckResult.riskLevel === 'Medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                    matchData.aiFakeCheckResult.isFake ? 'bg-red-500/10 border-red-500/30' :
+                    matchData.aiFakeCheckResult.confidence === 'low' ? 'bg-yellow-500/10 border-yellow-500/30' :
                     'bg-green-500/5 border-green-500/20'
                   }`}>
-                    <h3 className="text-gray-400 font-semibold mb-1 uppercase tracking-wide text-[10px]">Trust Score</h3>
+                    <h3 className="text-gray-400 font-semibold mb-1 uppercase tracking-wide text-[10px]">Trust Check</h3>
                     <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs text-white">Risk: <span className={matchData.aiFakeCheckResult.riskLevel === 'High' ? 'text-red-400' : matchData.aiFakeCheckResult.riskLevel === 'Medium' ? 'text-yellow-400' : 'text-green-400'}>{matchData.aiFakeCheckResult.riskLevel}</span></span>
-                      <span className="text-xs text-white font-bold">{matchData.aiFakeCheckResult.riskScore}/100</span>
+                      <span className="text-xs text-white">
+                        {matchData.aiFakeCheckResult.isFake 
+                          ? <span className="text-red-400">⚠️ Suspicious Listing</span> 
+                          : <span className="text-green-400">✓ Appears Genuine</span>}
+                      </span>
+                      <span className="text-xs text-white font-bold">{matchData.aiFakeCheckResult.confidence}</span>
                     </div>
+                    {matchData.aiFakeCheckResult.reasons && (
+                      <ul className="text-[10px] text-gray-400 mt-1 list-disc list-inside">
+                        {matchData.aiFakeCheckResult.reasons.map((reason, idx) => (
+                          <li key={idx}>{reason}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="text-[10px] text-gray-500 mt-1">Recommendation: {matchData.aiFakeCheckResult.recommendation}</p>
                   </div>
                 )}
               </div>

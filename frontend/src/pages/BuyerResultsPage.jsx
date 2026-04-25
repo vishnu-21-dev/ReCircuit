@@ -369,7 +369,15 @@ export default function BuyerResultsPage() {
         part: listing.part || searchContext.part || 'Component',
         partName: listing.part || searchContext.part || 'Component',
         modelName: listing.model || searchContext.model || 'Unknown',
+        grade: listing.grade || null,
+        price: listing.price || null,
         status: 'connected',
+        // Pass AI data from listing
+        videoUrl: listing.videoUrl || null,
+        aiPriceSuggestion: listing.aiPriceSuggestion || null,
+        aiGradeVerifyResult: listing.aiGradeVerifyResult || null,
+        aiFakeCheckResult: listing.aiFakeCheckResult || null,
+        aiRecognitionResult: listing.aiRecognitionResult || null,
       })
       navigate("/matches")
     } catch (error) {
