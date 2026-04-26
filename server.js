@@ -841,12 +841,12 @@ app.post("/api/shops", async (req, res) => {
                 lng: data.lng || null,
                 categories: data.categories || [],
                 shopPhotoUrl: data.shopPhotoUrl || '',
-                status: 'pending',
+                status: 'approved',
                 rejectionReason: '',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             });
-            res.json({ id: docRef.id, ...data, status: 'pending' });
+            res.json({ id: docRef.id, ...data, status: 'approved' });
         }
     } catch (error) {
         console.error("Error creating/updating shop:", error);
