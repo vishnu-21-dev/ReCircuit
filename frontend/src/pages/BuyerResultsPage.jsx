@@ -100,6 +100,36 @@ function renderGradeBadge(grade) {
   );
 }
 
+function renderTrustBadge(fakeResult) {
+  if (!fakeResult) return null;
+  const { recommendation, confidence } = fakeResult;
+  if (recommendation === 'approve') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border bg-green-100 text-green-800 border-green-300">
+        <span className="w-2 h-2 rounded-full bg-green-500" />
+        AI Verified
+      </span>
+    );
+  }
+  if (recommendation === 'flag') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border bg-yellow-100 text-yellow-800 border-yellow-300">
+        <span className="w-2 h-2 rounded-full bg-yellow-500" />
+        Review Needed
+      </span>
+    );
+  }
+  if (recommendation === 'reject') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border bg-red-100 text-red-800 border-red-300">
+        <span className="w-2 h-2 rounded-full bg-red-500" />
+        Suspicious Listing
+      </span>
+    );
+  }
+  return null;
+}
+
 function renderWarrantyBadge(warranty) {
   if (!warranty || warranty === 'No Warranty') {
     return (
@@ -615,6 +645,7 @@ export default function BuyerResultsPage() {
                     <span className="px-2 py-1 rounded-full text-xs font-bold bg-blue-600 text-white">Compatible Part</span>
                   )}
                   {renderWarrantyBadge(item.warranty)}
+                  {renderTrustBadge(item.aiFakeCheckResult)}
                   {item.condition && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-semibold border border-gray-200">
                       <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

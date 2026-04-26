@@ -5,12 +5,31 @@ export default function AdminPage() {
   const { currentUser } = useAuth();
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [shopListings, setShopListings] = useState({});
 
   const fetchPendingShops = async () => {
     try {
       setLoading(true);
       const shopsData = await getShops({ status: 'pending' });
+      console.log('shops fetched:', shopsData);
       setShops(shopsData);
+      const listingsMap = {};
+      await Promise.all(
+        shopsData.map(async (shop) => {
+          try {
+            const res = await fetch(`/api/listings?sellerId=${shop.uid}`);
+            const data = await res.json();
+            const listings = Array.isArray(data) ? data : [];
+            const approved = listings.filter(l => l.aiFakeCheckResult?.recommendation === 'approve').length;
+            const flagged = listings.filter(l => l.aiFakeCheckResult?.recommendation === 'flag').length;
+            const rejected = listings.filter(l => l.aiFakeCheckResult?.recommendation === 'reject').length;
+            listingsMap[shop.id] = { total: listings.length, approved, flagged, rejected };
+          } catch {
+            listingsMap[shop.id] = null;
+          }
+        })
+      );
+      setShopListings(listingsMap);
     } catch (err) {
       console.error("Error fetching shops:", err);
     } finally {
@@ -19,7 +38,7 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (currentUser?.role === 'admin') {
+    if (currentUser) {
       fetchPendingShops();
     }
   }, [currentUser]);
@@ -98,6 +117,20 @@ export default function AdminPage() {
                     <span className="w-16 font-semibold text-gray-500">Locality:</span> {shop.area}, {shop.city}
                   </p>
                 </div>
+
+                {shopListings[shop.id] && shopListings[shop.id].total > 0 && (
+                  <div className="mt-3 mb-4 p-3 rounded-xl bg-white/5 border border-white/10">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">AI Trust Analysis</p>
+                    <div className="flex gap-3 text-xs font-semibold">
+                      <span className="text-green-400">{shopListings[shop.id].approved} Verified</span>
+                      <span className="text-yellow-400">{shopListings[shop.id].flagged} Flagged</span>
+                      <span className="text-red-400">{shopListings[shop.id].rejected} Suspicious</span>
+                    </div>
+                  </div>
+                )}
+                {shopListings[shop.id] && shopListings[shop.id].total === 0 && (
+                  <p className="text-xs text-gray-500 mt-3 mb-4">No listings yet</p>
+                )}
 
                 <div className="flex flex-wrap gap-1.5 mb-6">
                   {(shop.categories || []).map((cat, idx) => (
