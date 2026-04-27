@@ -74,11 +74,11 @@ async function apiFetch(path, options = {}) {
     
     // Handle different endpoints
     if (path === '/requests') {
-      return { ...mockData.requests };
+      return [...mockData.requests];
     } else if (path === '/listings') {
-      return { ...mockData.listings };
+      return [...mockData.listings];
     } else if (path === '/shops') {
-      return { ...mockData.shops };
+      return [...mockData.shops];
     } else if (path.startsWith('/requests') && options.method === 'POST') {
       const newRequest = { ...JSON.parse(options.body), id: 'demo-' + Date.now() };
       mockData.requests.push(newRequest);
@@ -148,7 +148,7 @@ async function apiFetch(path, options = {}) {
     } else if (path.startsWith('/matches')) {
       return [];
     } else if (path.startsWith('/shops')) {
-      return { ...mockData.shops };
+      return [...mockData.shops];
     } else if (path.startsWith('/reviews')) {
       return [];
     } else if (path.startsWith('/ai/visual-recognize')) {
