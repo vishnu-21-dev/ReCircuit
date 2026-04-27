@@ -21,87 +21,13 @@ if (process.env.SERVICE_ACCOUNT_KEY) {
   throw new Error('SERVICE_ACCOUNT_KEY environment variable is not set. Please set it in Render dashboard.');
 }
 
-// HACKATHON MODE: Use in-memory storage to bypass Firebase authentication issues
-console.log('🚀 HACKATHON MODE: Using in-memory storage for demo purposes');
-
-// In-memory database
-const memoryDB = {
-  requests: [],
-  listings: [],
-  shops: [],
-  matches: [],
-  compatibility: [],
-  roles: []
-};
-
-const db = {
-  collection: (name) => ({
-    where: (field, op, value) => ({
-      get: async () => {
-        const collection = memoryDB[name] || [];
-        const filtered = collection.filter(item => {
-          if (field && op && value) {
-            return item[field] === value;
-          }
-          return true;
-        });
-        return {
-          forEach: (callback) => filtered.forEach(item => callback({ id: item.id, data: () => item })),
-          empty: filtered.length === 0
-        };
-      }
-    }),
-    doc: (id) => ({
-      get: async () => {
-        const collection = memoryDB[name] || [];
-        const item = collection.find(item => item.id === id);
-        return {
-          exists: !!item,
-          data: () => item || {},
-          id: id
-        };
-      },
-      set: async (data) => {
-        if (!memoryDB[name]) memoryDB[name] = [];
-        const index = memoryDB[name].findIndex(item => item.id === id);
-        if (index >= 0) {
-          memoryDB[name][index] = { ...data, id };
-        } else {
-          memoryDB[name].push({ ...data, id });
-        }
-        return { id };
-      },
-      update: async (data) => {
-        if (!memoryDB[name]) memoryDB[name] = [];
-        const index = memoryDB[name].findIndex(item => item.id === id);
-        if (index >= 0) {
-          memoryDB[name][index] = { ...memoryDB[name][index], ...data, id };
-        }
-        return { id };
-      },
-      delete: async () => {
-        if (memoryDB[name]) {
-          memoryDB[name] = memoryDB[name].filter(item => item.id !== id);
-        }
-        return { id };
-      }
-    }),
-    add: async (data) => {
-      if (!memoryDB[name]) memoryDB[name] = [];
-      const newId = 'hackathon-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-      const newItem = { ...data, id: newId };
-      memoryDB[name].push(newItem);
-      return { id: newId };
-    },
-    get: async () => {
-      const collection = memoryDB[name] || [];
-      return {
-        forEach: (callback) => collection.forEach(item => callback({ id: item.id, data: () => item })),
-        empty: collection.length === 0
-      };
-    }
-  })
-};
+// Initialize Firebase Admin with service account
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  projectId: serviceAccount.project_id
+});
+const db = admin.firestore();
+console.log('Firebase Admin initialized successfully with project:', serviceAccount.project_id);
 
 const app = express();
 const PORT = process.env.PORT || 5000;

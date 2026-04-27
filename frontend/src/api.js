@@ -1,35 +1,9 @@
 // Central API helper — all frontend data calls route through here
 import { auth } from './firebase';
-import { mockListings, mockRequests, mockShops } from './mockData';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-// Use mock data for hackathon demo
-const USE_MOCK_DATA = true;
-
 async function apiFetch(path, options = {}) {
-  if (USE_MOCK_DATA) {
-    // Return mock data for hackathon demo
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-    
-    if (path === '/requests') {
-      return { ...mockRequests };
-    } else if (path === '/listings') {
-      return { ...mockListings };
-    } else if (path === '/shops') {
-      return { ...mockShops };
-    } else if (path.startsWith('/requests') && options.method === 'POST') {
-      const newRequest = { ...JSON.parse(options.body), id: 'mock-' + Date.now() };
-      mockRequests.push(newRequest);
-      return newRequest;
-    } else if (path.startsWith('/listings') && options.method === 'POST') {
-      const newListing = { ...JSON.parse(options.body), id: 'mock-' + Date.now() };
-      mockListings.push(newListing);
-      return newListing;
-    }
-    return [];
-  }
-
   const token = await auth.currentUser?.getIdToken?.().catch(() => null);
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}${path}`, {
