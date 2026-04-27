@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "env": {
+    "SERVICE_ACCOUNT_KEY": "@service_account_key"
+  }
+}
