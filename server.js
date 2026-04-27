@@ -25,10 +25,11 @@ if (process.env.SERVICE_ACCOUNT_KEY) {
 let db;
 try {
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount),
+    projectId: serviceAccount.project_id
   });
   db = admin.firestore();
-  console.log('Firebase Admin initialized successfully');
+  console.log('Firebase Admin initialized successfully with project:', serviceAccount.project_id);
 } catch (error) {
   console.error('Firebase Admin initialization failed, using mock data:', error.message);
   
