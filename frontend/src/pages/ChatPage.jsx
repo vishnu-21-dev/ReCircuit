@@ -113,6 +113,8 @@ export default function ChatPage() {
         ...doc.data()
       }));
       setMessages(msgs);
+    }, (error) => {
+      console.error('Chat messages listener error:', error.message);
     });
 
     return () => unsubscribe();

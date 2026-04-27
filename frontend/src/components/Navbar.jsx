@@ -54,6 +54,8 @@ export default function Navbar() {
         matchesMap.set(doc.id, doc.data())
       })
       updateCount()
+    }, (error) => {
+      console.error('Navbar buyer matches listener error:', error.message)
     })
 
     const qSeller = query(
@@ -66,6 +68,8 @@ export default function Navbar() {
         matchesMap.set(doc.id, doc.data())
       })
       updateCount()
+    }, (error) => {
+      console.error('Navbar seller matches listener error:', error.message)
     })
 
     return () => {
