@@ -184,24 +184,41 @@ Example for "Battery" from "Lenovo LOQ 15": ["Lenovo LOQ 15IRH8", "Lenovo LOQ 15
 // ==================== BUYER REQUESTS ====================
 app.get("/api/requests", async (req, res) => {
     try {
-        console.log("Fetching requests...");
+        console.log("Fetching requests (bypass mode)...");
         const { buyerId, status } = req.query;
-        let listRef = db.collection("requests");
         
-        if (buyerId) listRef = listRef.where("buyerId", "==", buyerId);
-        if (status) listRef = listRef.where("status", "==", status);
+        // Return mock data for hackathon demo
+        const mockRequests = [
+            {
+                id: "hackathon-1",
+                category: "Mobile",
+                brand: "Apple",
+                model: "iPhone 11",
+                part: "Screen",
+                grade: "A",
+                priceOffered: 3000,
+                buyerId: buyerId || "demo-user",
+                status: status || "pending",
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: "hackathon-2",
+                category: "Mobile",
+                brand: "Samsung",
+                model: "Galaxy S20",
+                part: "Battery",
+                grade: "B",
+                priceOffered: 2000,
+                buyerId: buyerId || "demo-user",
+                status: status || "pending",
+                createdAt: new Date().toISOString()
+            }
+        ];
         
-        console.log("Querying Firestore...");
-        const snapshot = await listRef.get();
-        const requests = [];
-        snapshot.forEach(docSnap => {
-            requests.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        console.log(`Found ${requests.length} requests`);
-        res.json(requests);
+        console.log(`Returning ${mockRequests.length} mock requests`);
+        res.json(mockRequests);
     } catch (error) {
         console.error("Error fetching requests:", error);
-        console.error("Error details:", error.code, error.message);
         res.status(500).json({ error: error.message });
     }
 });

@@ -22,7 +22,7 @@ async function apiFetch(path, options = {}) {
 // ── Requests ──────────────────────────────────────────
 export const getRequests = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return apiFetch(`/requests-simple${qs ? `?${qs}` : ''}`);
+  return apiFetch(`/requests${qs ? `?${qs}` : ''}`);
 };
 
 export const createRequest = (data) =>
