@@ -21,29 +21,13 @@ if (process.env.SERVICE_ACCOUNT_KEY) {
   throw new Error('SERVICE_ACCOUNT_KEY environment variable is not set. Please set it in Render dashboard.');
 }
 
-// Temporarily use mock data to get the app working while Firebase auth is investigated
-console.log('Using mock database temporarily due to Firebase authentication issues');
-const db = {
-  collection: (name) => ({
-    where: () => ({
-      get: async () => ({ 
-        forEach: (callback) => {},
-        empty: true 
-      })
-    }),
-    doc: (id) => ({
-      get: async () => ({ exists: false }),
-      set: async () => {},
-      update: async () => {},
-      delete: async () => {}
-    }),
-    add: async () => ({ id: 'mock-id-' + Date.now() }),
-    get: async () => ({ 
-      forEach: (callback) => {},
-      empty: true 
-    })
-  })
-};
+// Initialize Firebase Admin with service account
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  projectId: serviceAccount.project_id
+});
+const db = admin.firestore();
+console.log('Firebase Admin initialized successfully with project:', serviceAccount.project_id);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
