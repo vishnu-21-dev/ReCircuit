@@ -6,16 +6,16 @@ const admin = require("firebase-admin");
 let serviceAccount;
 if (process.env.SERVICE_ACCOUNT_KEY) {
   try {
-    // First try parsing as-is
     serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_KEY);
-  } catch (e) {
-    try {
-      // If that fails, try replacing escaped newlines
-      serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_KEY.replace(/\\n/g, '\n'));
-    } catch (e2) {
-      console.error('Failed to parse SERVICE_ACCOUNT_KEY:', e2.message);
-      throw new Error('SERVICE_ACCOUNT_KEY environment variable is invalid. Please check the format.');
+    // CRITICAL: Render escapes newlines in environment variables. 
+    // Even if parsed correctly as JSON, the private_key string might contain literal '\\n' instead of real newlines.
+    // This causes exactly "16 UNAUTHENTICATED" errors when contacting Firestore from the backend.
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
     }
+  } catch (e) {
+    console.error('Failed to parse SERVICE_ACCOUNT_KEY:', e.message);
+    throw new Error('SERVICE_ACCOUNT_KEY environment variable is invalid. Please check the JSON format.');
   }
 } else {
   throw new Error('SERVICE_ACCOUNT_KEY environment variable is not set. Please set it in Render dashboard.');
