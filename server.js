@@ -984,6 +984,33 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "OK", message: "ReCircuit API is running on Admin SDK" });
 });
 
+// Simple test endpoint that bypasses Firebase
+app.get("/api/test-simple", (req, res) => {
+    res.json({ 
+        status: "OK", 
+        message: "Simple test endpoint working without Firebase",
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Simple requests endpoint without Firebase
+app.get("/api/requests-simple", (req, res) => {
+    res.json([
+        {
+            id: "test-1",
+            category: "Mobile",
+            brand: "Apple",
+            model: "iPhone 11",
+            part: "Screen",
+            grade: "A",
+            priceOffered: 3000,
+            buyerId: "test-user",
+            status: "pending",
+            createdAt: new Date().toISOString()
+        }
+    ]);
+});
+
 app.get("/api/debug-env", (req, res) => {
   try {
     const envKey = process.env.SERVICE_ACCOUNT_KEY;
