@@ -940,6 +940,31 @@ app.get("/api/debug-env", (req, res) => {
   }
 });
 
+// Test Firebase Admin connection
+app.get("/api/test-firebase", async (req, res) => {
+  try {
+    console.log("Testing Firebase Admin connection...");
+    
+    // Try to perform a simple Firestore operation
+    const testRef = db.collection("test").doc("connection");
+    const testDoc = await testRef.get();
+    
+    console.log("Firebase connection successful");
+    res.json({ 
+      success: true, 
+      message: "Firebase Admin connection working",
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Firebase connection test failed:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      code: error.code
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
     console.log(`🚀 ReCircuit API running on http://localhost:${PORT}`);
