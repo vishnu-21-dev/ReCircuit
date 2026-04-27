@@ -893,10 +893,33 @@ app.get("/api/health", (req, res) => {
 
 app.get("/api/debug-env", (req, res) => {
   try {
-    const key = JSON.parse(process.env.SERVICE_ACCOUNT_KEY);
-    res.json({ type: key.type, project_id: key.project_id, valid: true });
+    const envKey = process.env.SERVICE_ACCOUNT_KEY;
+    if (!envKey) {
+      return res.json({ 
+        valid: false, 
+        error: "SERVICE_ACCOUNT_KEY environment variable not found",
+        usingFallback: true,
+        envVarExists: false
+      });
+    }
+    
+    const key = JSON.parse(envKey);
+    res.json({ 
+      type: key.type, 
+      project_id: key.project_id, 
+      valid: true,
+      usingFallback: false,
+      envVarExists: true,
+      keyLength: envKey.length
+    });
   } catch(e) {
-    res.json({ valid: false, error: e.message });
+    res.json({ 
+      valid: false, 
+      error: e.message,
+      usingFallback: true,
+      envVarExists: !!process.env.SERVICE_ACCOUNT_KEY,
+      keyLength: process.env.SERVICE_ACCOUNT_KEY?.length || 0
+    });
   }
 });
 
