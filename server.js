@@ -3,7 +3,9 @@ const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...ar
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccountKey.json");
+const serviceAccount = require(
+  process.env.RENDER ? "/etc/secrets/serviceAccountKey.json" : "./serviceAccountKey.json"
+);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
