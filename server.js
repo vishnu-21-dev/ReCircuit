@@ -21,13 +21,86 @@ if (process.env.SERVICE_ACCOUNT_KEY) {
   throw new Error('SERVICE_ACCOUNT_KEY environment variable is not set. Please set it in Render dashboard.');
 }
 
-// Initialize Firebase Admin with service account
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  projectId: serviceAccount.project_id
-});
-const db = admin.firestore();
-console.log('Firebase Admin initialized successfully with project:', serviceAccount.project_id);
+// HACKATHON BYPASS: Skip Firebase Admin initialization to avoid authentication issues
+console.log('🚀 HACKATHON BYPASS: Skipping Firebase Admin to avoid authentication errors');
+
+// Create mock database that works without Firebase
+const mockDB = {
+  requests: [],
+  listings: [],
+  shops: [],
+  matches: [],
+  compatibility: []
+};
+
+const db = {
+  collection: (name) => ({
+    where: (field, op, value) => ({
+      get: async () => {
+        const collection = mockDB[name] || [];
+        const filtered = collection.filter(item => {
+          if (field && op && value) {
+            return item[field] === value;
+          }
+          return true;
+        });
+        return {
+          forEach: (callback) => filtered.forEach(item => callback({ id: item.id, data: () => item })),
+          empty: filtered.length === 0
+        };
+      }
+    }),
+    doc: (id) => ({
+      get: async () => {
+        const collection = mockDB[name] || [];
+        const item = collection.find(item => item.id === id);
+        return {
+          exists: !!item,
+          data: () => item || {},
+          id: id
+        };
+      },
+      set: async (data) => {
+        if (!mockDB[name]) mockDB[name] = [];
+        const index = mockDB[name].findIndex(item => item.id === id);
+        if (index >= 0) {
+          mockDB[name][index] = { ...data, id };
+        } else {
+          mockDB[name].push({ ...data, id });
+        }
+        return { id };
+      },
+      update: async (data) => {
+        if (!mockDB[name]) mockDB[name] = [];
+        const index = mockDB[name].findIndex(item => item.id === id);
+        if (index >= 0) {
+          mockDB[name][index] = { ...mockDB[name][index], ...data, id };
+        }
+        return { id };
+      },
+      delete: async () => {
+        if (mockDB[name]) {
+          mockDB[name] = mockDB[name].filter(item => item.id !== id);
+        }
+        return { id };
+      }
+    }),
+    add: async (data) => {
+      if (!mockDB[name]) mockDB[name] = [];
+      const newId = 'hackathon-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      const newItem = { ...data, id: newId };
+      mockDB[name].push(newItem);
+      return { id: newId };
+    },
+    get: async () => {
+      const collection = mockDB[name] || [];
+      return {
+        forEach: (callback) => collection.forEach(item => callback({ id: item.id, data: () => item })),
+        empty: collection.length === 0
+      };
+    }
+  })
+};
 
 const app = express();
 const PORT = process.env.PORT || 5000;
