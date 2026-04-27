@@ -1,7 +1,7 @@
 // Central API helper — all frontend data calls route through here
 import { auth } from './firebase';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 async function apiFetch(path, options = {}) {
   const token = await auth.currentUser?.getIdToken?.().catch(() => null);
