@@ -33,10 +33,23 @@ export default function AuthModal({ isOpen, onClose }) {
     try {
       setError('');
       setLoading(true);
-      await loginWithGoogle();
-      onClose(); // Automatically closes the modal on success
+      const result = await loginWithGoogle();
+      // signInWithRedirect returns undefined (page navigates away)
+      if (result) {
+        onClose(); // Automatically closes the modal on success
+      }
     } catch (err) {
-      setError(err.message || 'Failed to authenticate with Google');
+      // Show user-friendly messages for common errors
+      const msg = err.message || '';
+      if (msg.includes('UNAUTHENTICATED') || err.code === 'auth/internal-error') {
+        setError('Google Sign-In is temporarily unavailable. Please try email login or try again later.');
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError('Sign-in popup was closed. Please try again.');
+      } else if (err.code === 'auth/network-request-failed') {
+        setError('Network error. Please check your connection and try again.');
+      } else {
+        setError(msg || 'Failed to authenticate with Google');
+      }
     } finally {
       setLoading(false);
     }

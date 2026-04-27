@@ -58,11 +58,11 @@ export const updateListing = (id, data) =>
 export const createMatch = (data) =>
   apiFetch('/matches', { method: 'POST', body: JSON.stringify(data) });
 
-export const getMatches = () =>
-  apiFetch('/matches');
+export const getMatches = (userId) =>
+  apiFetch(`/matches/${userId}`);
 
 export const getMatchDoc = (matchId) =>
-  apiFetch(`/matches/${matchId}`);
+  apiFetch(`/matches/doc/${matchId}`);
 
 export const updateMatchStatus = (matchId, status) =>
   apiFetch(`/matches/${matchId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
