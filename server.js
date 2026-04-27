@@ -3,23 +3,9 @@ const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...ar
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
-let serviceAccount;
-if (process.env.SERVICE_ACCOUNT_KEY) {
-  try {
-    // First try parsing as-is
-    serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_KEY);
-  } catch (e) {
-    try {
-      // If that fails, try replacing escaped newlines
-      serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_KEY.replace(/\\n/g, '\n'));
-    } catch (e2) {
-      console.error('Failed to parse SERVICE_ACCOUNT_KEY:', e2.message);
-      serviceAccount = require("./serviceAccountKey.json");
-    }
-  }
-} else {
-  serviceAccount = require("./serviceAccountKey.json");
-}
+// Temporary: Force use of local file to test permissions
+const serviceAccount = require("./serviceAccountKey.json");
+console.log('Using local serviceAccountKey.json file');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
