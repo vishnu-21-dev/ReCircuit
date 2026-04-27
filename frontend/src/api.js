@@ -103,6 +103,48 @@ async function apiFetch(path, options = {}) {
         reasoning: `Price based on market analysis for ${data.grade} grade ${data.part} for ${data.brand} ${data.model}`,
         marketNote: "Competitive pricing based on current market conditions"
       };
+    } else if (path === '/compatibility') {
+      return {
+        "iPhone 11": ["iPhone 11 Pro", "iPhone 11 Pro Max", "iPhone 12", "iPhone 12 Mini"],
+        "iPhone 12": ["iPhone 12 Pro", "iPhone 12 Pro Max", "iPhone 13", "iPhone 13 Mini"],
+        "Galaxy S20": ["Galaxy S20+", "Galaxy S20 Ultra", "Galaxy S21", "Galaxy S21 FE"],
+        "Galaxy S21": ["Galaxy S21+", "Galaxy S21 Ultra", "Galaxy S22", "Galaxy S22 FE"]
+      };
+    } else if (path === '/search/ai' && options.method === 'POST') {
+      const queryData = JSON.parse(options.body);
+      const query = queryData.query.toLowerCase();
+      
+      // Simple AI search mock
+      let extractedIntent = { brand: "", model: "", part: "" };
+      
+      if (query.includes('iphone')) {
+        extractedIntent.brand = "Apple";
+        if (query.includes('11')) extractedIntent.model = "iPhone 11";
+        if (query.includes('12')) extractedIntent.model = "iPhone 12";
+        if (query.includes('screen')) extractedIntent.part = "Screen";
+        if (query.includes('battery')) extractedIntent.part = "Battery";
+      }
+      
+      if (query.includes('samsung') || query.includes('galaxy')) {
+        extractedIntent.brand = "Samsung";
+        if (query.includes('s20')) extractedIntent.model = "Galaxy S20";
+        if (query.includes('s21')) extractedIntent.model = "Galaxy S21";
+        if (query.includes('screen')) extractedIntent.part = "Screen";
+        if (query.includes('battery')) extractedIntent.part = "Battery";
+      }
+      
+      return {
+        results: mockData.listings.filter(listing => {
+          if (extractedIntent.brand && !listing.brand.toLowerCase().includes(extractedIntent.brand.toLowerCase())) return false;
+          if (extractedIntent.model && !listing.model.toLowerCase().includes(extractedIntent.model.toLowerCase())) return false;
+          if (extractedIntent.part && !listing.part.toLowerCase().includes(extractedIntent.part.toLowerCase())) return false;
+          return true;
+        }),
+        extractedIntent,
+        aiUsed: true,
+        compatibilityUsed: true,
+        message: "Found matching parts using AI search"
+      };
     }
     return [];
   }
