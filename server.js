@@ -877,6 +877,15 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "OK", message: "ReCircuit API is running on Admin SDK" });
 });
 
+app.get("/api/debug-env", (req, res) => {
+  try {
+    const key = JSON.parse(process.env.SERVICE_ACCOUNT_KEY);
+    res.json({ type: key.type, project_id: key.project_id, valid: true });
+  } catch(e) {
+    res.json({ valid: false, error: e.message });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
     console.log(`🚀 ReCircuit API running on http://localhost:${PORT}`);
