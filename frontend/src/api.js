@@ -145,6 +145,18 @@ async function apiFetch(path, options = {}) {
         compatibilityUsed: true,
         message: "Found matching parts using AI search"
       };
+    } else if (path.startsWith('/matches')) {
+      return [];
+    } else if (path.startsWith('/shops')) {
+      return { ...mockData.shops };
+    } else if (path.startsWith('/reviews')) {
+      return [];
+    } else if (path.startsWith('/ai/visual-recognize')) {
+      return { part: "Screen", confidence: 0.95 };
+    } else if (path.startsWith('/ai/detect-fake')) {
+      return { recommendation: "approve", confidence: 0.85 };
+    } else if (path.startsWith('/ai/verify-grade')) {
+      return { verifiedGrade: "A", confidence: 0.90 };
     }
     return [];
   }
