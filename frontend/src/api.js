@@ -151,12 +151,33 @@ async function apiFetch(path, options = {}) {
       return [...mockData.shops];
     } else if (path.startsWith('/reviews')) {
       return [];
-    } else if (path.startsWith('/ai/visual-recognize')) {
-      return { part: "Screen", confidence: 0.95 };
+    } else if (path.startsWith('/ai/visual-recogni')) {
+      return { 
+        category: "Smartphones",
+        brand: "Apple",
+        model: "iPhone 11",
+        part: "Screen", 
+        grade: "A",
+        confidence: "High",
+        notes: "Part appears to be an original Apple display in excellent condition with no visible scratches."
+      };
     } else if (path.startsWith('/ai/detect-fake')) {
-      return { recommendation: "approve", confidence: 0.85 };
+      return { 
+        riskLevel: "Low",
+        riskScore: 12,
+        issues: [],
+        reasoning: "The image perfectly matches an authentic iPhone 11 screen.",
+        recommendation: "approve", 
+        confidence: "High" 
+      };
     } else if (path.startsWith('/ai/verify-grade')) {
-      return { verifiedGrade: "A", confidence: 0.90 };
+      return { 
+        match: true,
+        aiGrade: "A",
+        confidence: "High", 
+        reasoning: "The item condition is pristine, verifying the Grade A selection.",
+        recommendation: "approve"
+      };
     }
     return [];
   }
@@ -250,15 +271,12 @@ export const aiSearch = (query) =>
 export const geminiPriceSuggest = (data) =>
   apiFetch('/ai/price-suggest', { method: 'POST', body: JSON.stringify(data) });
 
-export async function geminiCompatSuggest({ category, brand, model, part }) {
-  const res = await fetch(`${API_BASE}/ai/compat-suggest`, {
+export async function geminiCompatSuggest(data) {
+  const res = await apiFetch('/ai/compat-suggest', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ category, brand, model, part })
+    body: JSON.stringify(data)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'compat-suggest failed');
-  return data.models;
+  return res.models;
 }
 
 // ── Reviews ───────────────────────────────────────────
