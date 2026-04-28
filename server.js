@@ -21,86 +21,13 @@ if (process.env.SERVICE_ACCOUNT_KEY) {
   throw new Error('SERVICE_ACCOUNT_KEY environment variable is not set. Please set it in Render dashboard.');
 }
 
-// HACKATHON BYPASS: Skip Firebase Admin initialization to avoid authentication issues
-console.log('🚀 HACKATHON BYPASS: Skipping Firebase Admin to avoid authentication errors');
-
-// Create mock database that works without Firebase
-const mockDB = {
-  requests: [],
-  listings: [],
-  shops: [],
-  matches: [],
-  compatibility: []
-};
-
-const db = {
-  collection: (name) => ({
-    where: (field, op, value) => ({
-      get: async () => {
-        const collection = mockDB[name] || [];
-        const filtered = collection.filter(item => {
-          if (field && op && value) {
-            return item[field] === value;
-          }
-          return true;
-        });
-        return {
-          forEach: (callback) => filtered.forEach(item => callback({ id: item.id, data: () => item })),
-          empty: filtered.length === 0
-        };
-      }
-    }),
-    doc: (id) => ({
-      get: async () => {
-        const collection = mockDB[name] || [];
-        const item = collection.find(item => item.id === id);
-        return {
-          exists: !!item,
-          data: () => item || {},
-          id: id
-        };
-      },
-      set: async (data) => {
-        if (!mockDB[name]) mockDB[name] = [];
-        const index = mockDB[name].findIndex(item => item.id === id);
-        if (index >= 0) {
-          mockDB[name][index] = { ...data, id };
-        } else {
-          mockDB[name].push({ ...data, id });
-        }
-        return { id };
-      },
-      update: async (data) => {
-        if (!mockDB[name]) mockDB[name] = [];
-        const index = mockDB[name].findIndex(item => item.id === id);
-        if (index >= 0) {
-          mockDB[name][index] = { ...mockDB[name][index], ...data, id };
-        }
-        return { id };
-      },
-      delete: async () => {
-        if (mockDB[name]) {
-          mockDB[name] = mockDB[name].filter(item => item.id !== id);
-        }
-        return { id };
-      }
-    }),
-    add: async (data) => {
-      if (!mockDB[name]) mockDB[name] = [];
-      const newId = 'hackathon-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-      const newItem = { ...data, id: newId };
-      mockDB[name].push(newItem);
-      return { id: newId };
-    },
-    get: async () => {
-      const collection = mockDB[name] || [];
-      return {
-        forEach: (callback) => collection.forEach(item => callback({ id: item.id, data: () => item })),
-        empty: collection.length === 0
-      };
-    }
-  })
-};
+// Initialize Firebase Admin with service account
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  projectId: serviceAccount.project_id
+});
+const db = admin.firestore();
+console.log('Firebase Admin initialized successfully with project:', serviceAccount.project_id);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -184,41 +111,24 @@ Example for "Battery" from "Lenovo LOQ 15": ["Lenovo LOQ 15IRH8", "Lenovo LOQ 15
 // ==================== BUYER REQUESTS ====================
 app.get("/api/requests", async (req, res) => {
     try {
-        console.log("Fetching requests (bypass mode)...");
+        console.log("Fetching requests...");
         const { buyerId, status } = req.query;
+        let listRef = db.collection("requests");
         
-        // Return mock data for hackathon demo
-        const mockRequests = [
-            {
-                id: "hackathon-1",
-                category: "Mobile",
-                brand: "Apple",
-                model: "iPhone 11",
-                part: "Screen",
-                grade: "A",
-                priceOffered: 3000,
-                buyerId: buyerId || "demo-user",
-                status: status || "pending",
-                createdAt: new Date().toISOString()
-            },
-            {
-                id: "hackathon-2",
-                category: "Mobile",
-                brand: "Samsung",
-                model: "Galaxy S20",
-                part: "Battery",
-                grade: "B",
-                priceOffered: 2000,
-                buyerId: buyerId || "demo-user",
-                status: status || "pending",
-                createdAt: new Date().toISOString()
-            }
-        ];
+        if (buyerId) listRef = listRef.where("buyerId", "==", buyerId);
+        if (status) listRef = listRef.where("status", "==", status);
         
-        console.log(`Returning ${mockRequests.length} mock requests`);
-        res.json(mockRequests);
+        console.log("Querying Firestore...");
+        const snapshot = await listRef.get();
+        const requests = [];
+        snapshot.forEach(docSnap => {
+            requests.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        console.log(`Found ${requests.length} requests`);
+        res.json(requests);
     } catch (error) {
         console.error("Error fetching requests:", error);
+        console.error("Error details:", error.code, error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -999,33 +909,6 @@ app.patch("/api/shops/:id", async (req, res) => {
 // ==================== HEALTH CHECK ====================
 app.get("/api/health", (req, res) => {
     res.json({ status: "OK", message: "ReCircuit API is running on Admin SDK" });
-});
-
-// Simple test endpoint that bypasses Firebase
-app.get("/api/test-simple", (req, res) => {
-    res.json({ 
-        status: "OK", 
-        message: "Simple test endpoint working without Firebase",
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Simple requests endpoint without Firebase
-app.get("/api/requests-simple", (req, res) => {
-    res.json([
-        {
-            id: "test-1",
-            category: "Mobile",
-            brand: "Apple",
-            model: "iPhone 11",
-            part: "Screen",
-            grade: "A",
-            priceOffered: 3000,
-            buyerId: "test-user",
-            status: "pending",
-            createdAt: new Date().toISOString()
-        }
-    ]);
 });
 
 app.get("/api/debug-env", (req, res) => {
