@@ -3,22 +3,40 @@ const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...ar
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
+const fs = require('fs');
+
 let serviceAccount;
-if (process.env.SERVICE_ACCOUNT_KEY) {
+const secretFilePath = '/etc/secrets/serviceAccountKey.json';
+const localFilePath = './serviceAccountKey.json';
+
+if (fs.existsSync(secretFilePath)) {
+  console.log('Loading service account from Render Secret File...');
+  serviceAccount = JSON.parse(fs.readFileSync(secretFilePath, 'utf8'));
+} else if (fs.existsSync(localFilePath)) {
+  console.log('Loading service account from local file...');
+  serviceAccount = JSON.parse(fs.readFileSync(localFilePath, 'utf8'));
+} else if (process.env.SERVICE_ACCOUNT_KEY) {
+  console.log('Loading service account from Environment Variable...');
   try {
     serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_KEY);
-    // CRITICAL: Render escapes newlines in environment variables. 
-    // Even if parsed correctly as JSON, the private_key string might contain literal '\\n' instead of real newlines.
-    // This causes exactly "16 UNAUTHENTICATED" errors when contacting Firestore from the backend.
+    // CRITICAL: Format private_key to handle missing or escaped newlines
     if (serviceAccount.private_key) {
       serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      if (!serviceAccount.private_key.includes('\n')) {
+         const keyBody = serviceAccount.private_key
+            .replace('-----BEGIN PRIVATE KEY-----', '')
+            .replace('-----END PRIVATE KEY-----', '')
+            .replace(/\s+/g, ''); // remove any rogue spaces
+         const formattedKey = keyBody.match(/.{1,64}/g).join('\n');
+         serviceAccount.private_key = `-----BEGIN PRIVATE KEY-----\n${formattedKey}\n-----END PRIVATE KEY-----\n`;
+      }
     }
   } catch (e) {
     console.error('Failed to parse SERVICE_ACCOUNT_KEY:', e.message);
     throw new Error('SERVICE_ACCOUNT_KEY environment variable is invalid. Please check the JSON format.');
   }
 } else {
-  throw new Error('SERVICE_ACCOUNT_KEY environment variable is not set. Please set it in Render dashboard.');
+  throw new Error('SERVICE_ACCOUNT_KEY is not set. Please set it as an Environment Variable or upload serviceAccountKey.json to /etc/secrets/ in Render dashboard.');
 }
 
 // Initialize Firebase Admin with service account
