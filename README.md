@@ -1,124 +1,58 @@
-# ReCircuit ♻️
+# ReCircuit
 
-**ReCircuit** is an AI-powered electronics repair parts marketplace connecting buyers with repair shops to reduce e-waste. By leveraging AI for visual recognition, automated grading, and price suggestions, ReCircuit provides a seamless way to list, search, and match spare electronics components.
-
----
-
-## 🌟 Key Features
-
-- **Buyer & Seller Roles**: Dedicated workflows for buyers searching for parts and shops listing their inventory.
-- **AI Visual Recognition**: Autonomously identifies parts from user-uploaded images to extract categories, brands, models, and grades.
-- **AI Price Suggestions**: Recommends fair market prices for used/salvaged parts based on component condition and market rates.
-- **AI Fake Listing Detection**: Analyzes listings to identify potentially suspicious or fake parts.
-- **AI Compatibility Engine**: Suggests cross-generation and cross-chassis compatible models for specific components.
-- **Real-Time Matchmaking & Chat**: Connects buyers with sellers instantly, supporting in-app chat using Firebase.
-- **Video Verification**: Sellers can upload up to 45 seconds of video for component grading verification.
+A hyperlocal B2B/B2C marketplace for electronics repair parts, connecting buyers with verified repair shops in Bengaluru. Demand-first model: buyers post requests, nearby shops respond with availability, ReCircuit facilitates the match.
 
 ---
 
-## 🛠️ Tech Stack
+## The Problem
 
-**Frontend**
-- React 18 & Vite
-- Tailwind CSS (Styling)
-- React Router v6
-
-**Backend & Integration**
-- Node.js & Express.js
-- Firebase Admin SDK (Firestore & Authentication)
-- Cloudinary (Image & Video Storage)
-- Groq/Gemini API (LLM Integration for AI features)
+Bengaluru's electronics repair sector is unorganized. Shops struggle to source stripped components, buyers have no reliable way to find used parts, and functional electronics become waste because individual components cannot be located quickly.
 
 ---
 
-## 📋 Prerequisites
+## How It Works
 
-Before running the application locally, ensure you have the following installed:
-- [Node.js](https://nodejs.org/en) (v16.x or newer)
-- [npm](https://www.npmjs.com/) (usually comes with Node.js)
-- A Firebase project with Firestore and Authentication enabled
-- Cloudinary account for media
-- Groq/Gemini API keys
+**Buyers** post a request for a specific part. Nearby verified shops respond if they have it in stock.
+
+**Sellers** list stripped components with AI-assisted grading and pricing, then respond to buyer requests in real time.
 
 ---
 
-## ⚙️ Installation & Setup
+## Features
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/vishnu-21-dev/ReCircuit.git
-   cd ReCircuit
-   ```
+**AI-powered listing**
+- Visual recognition identifies part category, brand, and model from uploaded images
+- Automated grading based on component condition
+- Price recommendations calibrated to used/salvaged market rates
+- Fake listing detection flags suspicious entries before they go live
 
-2. **Backend Setup:**
-   - Install the root dependencies:
-     ```bash
-     npm install
-     ```
-   - Create a `.env` file in the root directory based on the following template configuration:
-     ```env
-     PORT=5000
-     GEMINI_KEY=your_gemini_api_key
-     GROQ_KEY=your_groq_api_key
-     ```
-   - Place your Firebase Admin SDK service account credentials in a `serviceAccountKey.json` file inside the root directory.
+**Verification**
+- Sellers record up to 45 seconds of video per listing confirming component condition
+- Buyers can view all uploaded images and video before committing to a match
 
-3. **Frontend Setup:**
-   - Navigate to the `frontend` directory:
-     ```bash
-     cd frontend
-     ```
-   - Install frontend dependencies:
-     ```bash
-     npm install
-     ```
-   - Return to the root directory:
-     ```bash
-     cd ..
-     ```
+**Matchmaking**
+- Buyer requests matched against nearby shop inventory using geolocation
+- Sellers listing a part are automatically surfaced when a matching buyer request comes in
+- Real-time in-app chat after a match, with AI-generated component details pinned to the conversation
+
+**Compatibility Engine**
+- Suggests cross-generation and cross-chassis compatible models when an exact part is unavailable
 
 ---
 
-## 🚀 Running the Application
+## Tech Stack
 
-You can use the root `package.json` to concurrently run both the frontend and backend servers.
-
-**Start both Development Servers:**
-```bash
-npm run dev
-```
-
-If you prefer to run them separately:
-- **Start Backend API server:**
-  ```bash
-  npm run server
-  ```
-- **Start Frontend application:**
-  ```bash
-  npm run client
-  ```
-
-Once initiated, the application will be accessible at:
-- **Frontend UI**: `http://localhost:5173` (default Vite port)
-- **Backend API**: `http://localhost:5000`
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite, Tailwind CSS, React Router v6 |
+| Maps | Leaflet.js, OpenStreetMap |
+| Backend | Node.js, Express.js |
+| Database / Auth | Firebase Firestore, Firebase Authentication |
+| Media | Cloudinary |
+| AI | Gemini API, Groq API |
 
 ---
 
-## 📂 Project Structure
+## Note on Access
 
-```text
-ReCircuit/
-├── api/                  # API route handlers
-├── frontend/             # React application source code
-├── middleware/           # Express middlewares
-├── scripts/              # Python/JS utility scripts for database seeding
-├── utils/                # Helper functions for the Node backend
-├── firebase.js           # Firebase app initialization file
-├── server.js             # Main Express backend server entry point
-├── package.json          # Root npm configurations and scripts
-└── ...
-```
-
----
-
-*Built for Ideathon 2026 - Giving electronics a second life ♻️*
+This repository is public for evaluation purposes only. Cloning, forking, or reuse of this code is not permitted. All rights reserved.
