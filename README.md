@@ -51,8 +51,3 @@ Bengaluru's electronics repair sector is unorganized. Shops struggle to source s
 | Media | Cloudinary |
 | AI | Gemini API, Groq API |
 
----
-
-## Note on Access
-
-This repository is public for evaluation purposes only. Cloning, forking, or reuse of this code is not permitted. All rights reserved.
