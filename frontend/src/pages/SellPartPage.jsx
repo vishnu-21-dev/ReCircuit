@@ -443,12 +443,13 @@ export default function SellPartPage() {
       // Debug logging
       console.log('Sending image for recognition, base64 length:', base64?.length)
 
-      const result = await visualRecognizePart(base64)
+      const mimeType = recognitionImage.match(/^data:([^;]+);/)?.[1]
+      const result = await visualRecognizePart(base64, mimeType)
       console.log('Recognition result:', result)
       setRecognitionResult(result)
 
       // Auto-fill form if confidence is high enough
-      if (result.confidence === 'High' || result.confidence === 'Medium') {
+      if (['high', 'medium'].includes(String(result.confidence).toLowerCase())) {
         if (result.category && CATEGORIES.includes(result.category)) setCategory(result.category)
         if (result.part) setPart(result.part)
         if (result.grade && ['A', 'B', 'C', 'D'].includes(result.grade)) setGrade(result.grade)
@@ -477,6 +478,7 @@ export default function SellPartPage() {
       const base64 = recognitionImage.split(',')[1]
       const result = await verifyGrade({
         imageBase64: base64,
+        mimeType: recognitionImage.match(/^data:([^;]+);/)?.[1],
         category,
         brand,
         model,
@@ -513,6 +515,7 @@ export default function SellPartPage() {
       setFakeCheckResult(result)
     } catch (err) {
       console.error('Fake detection failed:', err)
+      alert('Fake listing check failed: ' + (err.data?.detail || err.message || 'Unknown error'))
     } finally {
       setFakeCheckLoading(false)
     }
@@ -811,14 +814,14 @@ export default function SellPartPage() {
                     )}
 
                     {recognitionResult && (
-                      <div className={`p-3 rounded-xl text-sm ${recognitionResult.confidence === 'High' ? 'bg-green-100 border border-green-200' : recognitionResult.confidence === 'Medium' ? 'bg-yellow-50 border border-yellow-200' : 'bg-orange-50 border border-orange-200'}`}>
+                      <div className={`p-3 rounded-xl text-sm ${String(recognitionResult.confidence).toLowerCase() === 'high' ? 'bg-green-100 border border-green-200' : String(recognitionResult.confidence).toLowerCase() === 'medium' ? 'bg-yellow-50 border border-yellow-200' : 'bg-orange-50 border border-orange-200'}`}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-bold text-gray-900">Detected: {recognitionResult.part}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            recognitionResult.confidence === 'High' ? 'bg-green-200 text-green-800' :
-                            recognitionResult.confidence === 'Medium' ? 'bg-yellow-200 text-yellow-800' :
+                            String(recognitionResult.confidence).toLowerCase() === 'high' ? 'bg-green-200 text-green-800' :
+                            String(recognitionResult.confidence).toLowerCase() === 'medium' ? 'bg-yellow-200 text-yellow-800' :
                             'bg-orange-200 text-orange-800'
-                          }`}>{recognitionResult.confidence} confidence</span>
+                          }`}><span className="capitalize">{recognitionResult.confidence}</span> confidence</span>
                         </div>
                         {(recognitionResult.category || recognitionResult.brand) && (
                           <p className="text-gray-600 text-xs mb-1">
@@ -971,10 +974,10 @@ export default function SellPartPage() {
                           {gradeVerifyResult.match ? 'Grade Verified ✓' : 'Mismatch Detected'}
                         </span>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          gradeVerifyResult.confidence === 'High' ? 'bg-green-200 text-green-800' :
-                          gradeVerifyResult.confidence === 'Medium' ? 'bg-yellow-200 text-yellow-800' :
+                          String(gradeVerifyResult.confidence).toLowerCase() === 'high' ? 'bg-green-200 text-green-800' :
+                          String(gradeVerifyResult.confidence).toLowerCase() === 'medium' ? 'bg-yellow-200 text-yellow-800' :
                           'bg-orange-200 text-orange-800'
-                        }`}>{gradeVerifyResult.confidence} confidence</span>
+                        }`}><span className="capitalize">{gradeVerifyResult.confidence}</span> confidence</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                         <span className="text-gray-500">Claimed Grade:</span>

@@ -71,10 +71,113 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const GEMINI_KEY = process.env.GEMINI_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
-
 const GROQ_KEY = process.env.GROQ_KEY;
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_URL = process.env.GROQ_URL || 'https://api.groq.com/openai/v1/chat/completions';
+
+const csv = (v, fallback) => (v || fallback).split(',').map(s => s.trim()).filter(Boolean);
+const GROQ_TEXT_MODELS = csv(process.env.GROQ_TEXT_MODELS, 'llama-3.3-70b-versatile,llama-3.1-8b-instant');
+const GROQ_VISION_MODELS = csv(process.env.GROQ_VISION_MODELS, 'meta-llama/llama-4-scout-17b-16e-instruct,meta-llama/llama-4-maverick-17b-128e-instruct');
+const GEMINI_MODELS = csv(process.env.GEMINI_MODELS, 'gemini-2.0-flash,gemini-2.5-flash');
+
+console.log(`AI providers: Groq ${GROQ_KEY ? 'configured' : 'NOT configured (set GROQ_KEY)'}, Gemini ${GEMINI_KEY ? 'configured (fallback)' : 'not configured (optional fallback via GEMINI_KEY)'}`);
+
+// ==================== AI HELPERS ====================
+// Pull a JSON value out of an LLM reply even if it is wrapped in fences or prose.
+function extractJson(text, expect) {
+  const open = expect === 'array' ? '[' : '{';
+  const close = expect === 'array' ? ']' : '}';
+  const stripped = String(text || '').replace(/```(?:json)?/gi, '').trim();
+  const candidates = [stripped];
+  const start = stripped.indexOf(open);
+  const end = stripped.lastIndexOf(close);
+  if (start !== -1 && end > start) candidates.push(stripped.slice(start, end + 1));
+  for (const c of candidates) {
+    try {
+      const v = JSON.parse(c);
+      if (expect === 'array' ? Array.isArray(v) : (v && typeof v === 'object' && !Array.isArray(v))) return v;
+    } catch (_) { /* try next candidate */ }
+  }
+  throw new Error(`Could not parse JSON ${expect || 'object'} from AI reply: ${stripped.slice(0, 200)}`);
+}
+
+async function fetchWithTimeout(url, options, ms = 45000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function callGroq(model, prompt, image, maxTokens, temperature) {
+  const content = image
+    ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.base64}` } }]
+    : prompt;
+  const r = await fetchWithTimeout(GROQ_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_KEY}` },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content }], temperature, max_tokens: maxTokens })
+  });
+  const data = await r.json().catch(() => ({}));
+  const text = data?.choices?.[0]?.message?.content;
+  if (!r.ok || !text) throw new Error(`Groq ${model} ${r.status}: ${data?.error?.message || JSON.stringify(data).slice(0, 200)}`);
+  return text;
+}
+
+async function callGemini(model, prompt, image, maxTokens, temperature) {
+  const parts = [{ text: prompt }];
+  if (image) parts.push({ inline_data: { mime_type: image.mimeType, data: image.base64 } });
+  const r = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+    body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature, maxOutputTokens: maxTokens } })
+  });
+  const data = await r.json().catch(() => ({}));
+  const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('');
+  if (!r.ok || !text) throw new Error(`Gemini ${model} ${r.status}: ${data?.error?.message || JSON.stringify(data).slice(0, 200)}`);
+  return text;
+}
+
+// Ask an LLM, trying Groq models first and then Gemini. `expect` ('object' | 'array')
+// makes it parse JSON and move on to the next model if the reply is unusable.
+const GRADES = ['A', 'B', 'C', 'D'];
+const normGrade = (g) => String(g || '').trim().toUpperCase().charAt(0);
+const normConfidence = (c) => {
+  const v = String(c || '').trim().toLowerCase();
+  return ['high', 'medium', 'low'].includes(v) ? v : 'low';
+};
+const requireGrade = (field) => (o) => { if (!GRADES.includes(normGrade(o[field]))) throw new Error(`AI reply has no valid ${field}`); };
+
+// An optional `validate(obj)` may throw to reject an unusable reply and try the next model.
+async function askAI({ prompt, image = null, expect = 'object', maxTokens = 1024, temperature = 0.2, validate = null }) {
+  const attempts = [];
+  if (GROQ_KEY) {
+    for (const model of (image ? GROQ_VISION_MODELS : GROQ_TEXT_MODELS)) attempts.push(() => callGroq(model, prompt, image, maxTokens, temperature));
+  }
+  if (GEMINI_KEY) {
+    for (const model of GEMINI_MODELS) attempts.push(() => callGemini(model, prompt, image, maxTokens, temperature));
+  }
+  if (!attempts.length) throw new Error('No AI provider configured. Set GROQ_KEY (or GEMINI_KEY) in the server environment.');
+
+  const errors = [];
+  for (const attempt of attempts) {
+    try {
+      const parsed = extractJson(await attempt(), expect);
+      if (validate) validate(parsed);
+      return parsed;
+    } catch (err) {
+      console.error('AI attempt failed:', err.message);
+      errors.push(err.message);
+    }
+  }
+  throw new Error(`All AI providers failed: ${errors.join(' | ')}`);
+}
+
+const toImage = (base64, mimeType) => ({
+  base64: String(base64).replace(/^data:[^;]+;base64,/, ''),
+  mimeType: mimeType || (String(base64).match(/^data:([^;]+);base64,/) || [])[1] || 'image/jpeg'
+});
 
 // ==================== AI COMPAT SUGGEST (GROQ) ====================
 app.post("/api/ai/compat-suggest", async (req, res) => {
@@ -98,31 +201,12 @@ CRITICAL RULES:
 Return ONLY a JSON array of strings. No explanation, no markdown, no backticks. If no compatible models exist, return [].
 Example for "Battery" from "Lenovo LOQ 15": ["Lenovo LOQ 15IRH8", "Lenovo LOQ 15AHP9"]`;
   try {
-    const groqRes = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GROQ_KEY}`
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.2,
-        max_tokens: 512
-      })
-    });
-    const groqData = await groqRes.json();
-    if (!groqRes.ok || !groqData.choices) {
-      console.error("Groq compat-suggest error:", groqData);
-      return res.status(503).json({ error: "AI unavailable", detail: groqData });
-    }
-    const raw = groqData?.choices?.[0]?.message?.content || "[]";
-    const clean = raw.replace(/```json|```/g, "").trim();
-    const models = JSON.parse(clean);
+    const raw = await askAI({ prompt, expect: "array", maxTokens: 512 });
+    const models = [...new Set(raw.filter(m => typeof m === "string" && m.trim()).map(m => m.trim()))].slice(0, 6);
     res.json({ models });
   } catch (err) {
     console.error("compat-suggest error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(503).json({ error: "AI unavailable", detail: err.message });
   }
 });
 
@@ -324,58 +408,31 @@ app.post("/api/search/ai", async (req, res) => {
     const { query } = req.body;
     if (!query) return res.status(400).json({ error: "Query required" });
 
-    const groqRes = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GROQ_KEY}`
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [{
-          role: "user",
-          content: `You are a search assistant for an electronics repair parts marketplace in India.
+    const empty = { brand: "", model: "", part: "" };
+    let parsed;
+    try {
+      parsed = await askAI({
+        prompt: `You are a search assistant for an electronics repair parts marketplace in India.
 Extract the brand, model, and part name from this search query: "${query}"
 Respond ONLY with a JSON object, no markdown, no backticks, no explanation.
-Format: {"brand": "...", "model": "...", "part": "..."}`
-        }],
-        temperature: 0.2,
-        max_tokens: 256
-      })
-    });
-
-    const groqData = await groqRes.json();
-    console.log("Groq search response:", JSON.stringify(groqData, null, 2));
-
-    if (!groqRes.ok || !groqData.choices) {
-      console.error("Groq search error:", groqData);
+Format: {"brand": "...", "model": "...", "part": "..."}
+Use an empty string for anything not mentioned in the query.`,
+        maxTokens: 256
+      });
+    } catch (e) {
+      console.error("AI search error:", e.message);
       return res.json({
         results: [],
-        parsed: { brand: "", model: "", part: "" },
-        extractedIntent: { brand: "", model: "", part: "" },
+        parsed: empty,
+        extractedIntent: empty,
         aiUsed: false,
         message: "AI unavailable, try keyword search"
       });
     }
 
-    const rawText = groqData?.choices?.[0]?.message?.content || "";
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
-
-    let parsed = { brand: "", model: "", part: "" };
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch (e) {
-      console.error("Failed to parse Groq JSON:", cleaned);
-      return res.json({
-        results: [],
-        parsed,
-        extractedIntent: parsed,
-        aiUsed: false,
-        message: "AI could not understand the query, try being more specific"
-      });
-    }
-
-    const { brand, model, part } = parsed;
+    const clean = (v) => (typeof v === "string" ? v.trim() : "");
+    const brand = clean(parsed.brand), model = clean(parsed.model), part = clean(parsed.part);
+    parsed = { brand, model, part };
 
     let listingsRef = db.collection("listings");
     let snapshot = await listingsRef
@@ -411,17 +468,9 @@ app.post("/api/ai/price-suggest", async (req, res) => {
     const gradeLabels = { A: 'Excellent', B: 'Good', C: 'Fair', D: 'Poor' };
     const gradeLabel = gradeLabels[grade] || grade;
 
-    const groqRes = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GROQ_KEY}`
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [{
-          role: "user",
-          content: `You are a pricing expert for USED, SALVAGED electronics repair parts in India (Bangalore local repair market).
+    const parsed = await askAI({
+      temperature: 0.3,
+      prompt: `You are a pricing expert for USED, SALVAGED electronics repair parts in India (Bangalore local repair market).
 
 A seller wants to list this PULLED/HARVESTED second-hand part:
 - Category: ${category}
@@ -454,34 +503,21 @@ Respond ONLY with a JSON object, no markdown, no backticks, no explanation:
   "reasoning": "<1-2 sentences explaining why this price is attractive vs buying new>",
   "marketNote": "<1 sentence: what a new replacement costs, so the buyer sees the savings>"
 }`
-        }],
-        temperature: 0.3,
-        max_tokens: 1024
-      })
     });
 
-    const groqData = await groqRes.json();
-
-    if (!groqRes.ok || !groqData.choices) {
-      console.error("Groq price suggest error:", groqData);
-      return res.status(503).json({ error: "AI unavailable" });
+    const suggestedPrice = Math.round(Number(String(parsed.suggestedPrice).replace(/[^\d.]/g, "")));
+    if (!Number.isFinite(suggestedPrice) || suggestedPrice <= 0) {
+      throw new Error("AI returned no usable price");
     }
-
-    const rawText = groqData?.choices?.[0]?.message?.content || "";
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
-
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch (e) {
-      console.error("Failed to parse Groq price JSON:", cleaned);
-      return res.status(500).json({ error: "Failed to parse AI response" });
-    }
-
-    return res.json(parsed);
+    return res.json({
+      suggestedPrice,
+      range: parsed.range || `Rs. ${suggestedPrice}`,
+      reasoning: parsed.reasoning || "",
+      marketNote: parsed.marketNote || ""
+    });
   } catch (err) {
     console.error("Price suggestion error:", err);
-    return res.status(500).json({ error: "Price suggestion failed", details: err.message });
+    return res.status(503).json({ error: "Price suggestion unavailable", detail: err.message });
   }
 });
 
@@ -507,38 +543,14 @@ Grading criteria:
 - Grade C: Fair, 50-70% intact, visible damage, needs minor repair
 - Grade D: Parts only, below 50% condition, heavy damage or broken`;
 
-    const mime = mimeType || "image/jpeg";
-    const groqRes = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GROQ_KEY}`
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:${mime};base64,${imageBase64}` } }
-          ]
-        }],
-        temperature: 0.2,
-        max_tokens: 1024
-      })
-    });
-    const groqData = await groqRes.json();
-    if (!groqRes.ok || !groqData.choices) {
-      console.error("Groq vision error:", groqData);
-      return res.status(500).json({ error: "Vision analysis failed", details: groqData });
-    }
-    const rawText = groqData?.choices?.[0]?.message?.content || "";
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
+    const parsed = await askAI({ prompt, image: toImage(imageBase64, mimeType), validate: requireGrade("grade") });
+    parsed.grade = normGrade(parsed.grade);
+    parsed.confidence = normConfidence(parsed.confidence);
+    parsed.notes = parsed.notes || parsed.gradeReason || "";
     return res.json(parsed);
   } catch (err) {
     console.error("Visual recognition error:", err);
-    return res.status(500).json({ error: "Visual recognition failed", details: err.message });
+    return res.status(503).json({ error: "Visual recognition failed", detail: err.message });
   }
 });
 
@@ -552,7 +564,9 @@ app.post("/api/ai/detect-fake", async (req, res) => {
 {
   "isFake": true|false,
   "confidence": "high|medium|low",
+  "riskScore": <integer 0-100, higher = more suspicious>,
   "reasons": ["reason1", "reason2"],
+  "reasoning": "one or two sentence summary",
   "recommendation": "approve|flag|reject"
 }
 
@@ -563,7 +577,7 @@ Listing details:
 - Part: ${part}
 - Grade: ${grade}
 - Price: ${price}
-- Description: ${description}
+- Description: ${description || "(none provided)"}
 
 Check for:
 - Unrealistically low prices for high-grade parts
@@ -571,37 +585,36 @@ Check for:
 - Inconsistent brand/model/part combinations
 - Common scam patterns in electronics parts market`;
 
-    const groqRes = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GROQ_KEY}`
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.2,
-        max_tokens: 512
-      })
+    const parsed = await askAI({ prompt, maxTokens: 512 });
+    // Normalise to one shape that satisfies both the Sell page (riskLevel/riskScore/issues)
+    // and the Match/Chat pages (isFake/confidence/reasons).
+    const reasons = Array.isArray(parsed.reasons) ? parsed.reasons : Array.isArray(parsed.issues) ? parsed.issues : [];
+    let riskScore = Math.round(Number(parsed.riskScore));
+    const isFake = parsed.isFake === true || String(parsed.isFake).toLowerCase() === "true";
+    if (!Number.isFinite(riskScore)) riskScore = isFake ? 80 : 20;
+    riskScore = Math.min(100, Math.max(0, riskScore));
+    const recommendation = ["approve", "flag", "reject"].includes(parsed.recommendation)
+      ? parsed.recommendation
+      : (riskScore >= 70 ? "reject" : riskScore >= 40 ? "flag" : "approve");
+    res.json({
+      isFake: isFake || riskScore >= 70,
+      confidence: normConfidence(parsed.confidence),
+      riskScore,
+      riskLevel: riskScore >= 70 ? "High" : riskScore >= 40 ? "Medium" : "Low",
+      reasons,
+      issues: reasons,
+      reasoning: parsed.reasoning || reasons.join(" ") || "No obvious red flags found.",
+      recommendation
     });
-    const groqData = await groqRes.json();
-    if (!groqRes.ok || !groqData.choices) {
-      console.error("Groq fake detect error:", groqData);
-      return res.status(500).json({ error: "Fake detection failed", details: groqData });
-    }
-    const rawText = groqData?.choices?.[0]?.message?.content || "";
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
-    res.json(parsed);
   } catch (err) {
     console.error("Fake detection error:", err);
-    res.status(500).json({ error: "Fake detection failed", details: err.message });
+    res.status(503).json({ error: "Fake detection failed", detail: err.message });
   }
 });
 
 // ==================== AI GRADE VERIFICATION (GROQ VISION) ====================
 app.post("/api/ai/verify-grade", async (req, res) => {
-  const { imageBase64, category, brand, model, part, claimedGrade } = req.body;
+  const { imageBase64, mimeType, category, brand, model, part, claimedGrade } = req.body;
   if (!imageBase64 || !claimedGrade) return res.status(400).json({ error: "imageBase64 and claimedGrade required" });
   try {
     const prompt = `You are an electronics parts grading expert. Verify if this part matches the claimed grade "${claimedGrade}".
@@ -622,37 +635,24 @@ Grading criteria:
 
 Part details: ${category} ${brand} ${model} ${part}`;
 
-    const groqRes = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GROQ_KEY}`
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-          ]
-        }],
-        temperature: 0.2,
-        max_tokens: 1024
-      })
+    const parsed = await askAI({ prompt, image: toImage(imageBase64, mimeType), validate: requireGrade("verifiedGrade") });
+    // Same dual shape: Sell page reads match/aiGrade/recommendation, Match/Chat read matchesClaimed/verifiedGrade.
+    const verifiedGrade = normGrade(parsed.verifiedGrade);
+    const claimed = normGrade(claimedGrade);
+    const matchesClaimed = verifiedGrade === claimed;
+    const recommendation = matchesClaimed ? "approve" : GRADES.indexOf(verifiedGrade) > GRADES.indexOf(claimed) ? "downgrade" : "review";
+    res.json({
+      verifiedGrade,
+      aiGrade: verifiedGrade,
+      matchesClaimed,
+      match: matchesClaimed,
+      confidence: normConfidence(parsed.confidence),
+      reasoning: parsed.reasoning || "",
+      recommendation
     });
-    const groqData = await groqRes.json();
-    if (!groqRes.ok || !groqData.choices) {
-      console.error("Groq grade verify error:", groqData);
-      return res.status(500).json({ error: "Grade verification failed", details: groqData });
-    }
-    const rawText = groqData?.choices?.[0]?.message?.content || "";
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
-    res.json(parsed);
   } catch (err) {
     console.error("Grade verification error:", err);
-    res.status(500).json({ error: "Grade verification failed", details: err.message });
+    res.status(503).json({ error: "Grade verification failed", detail: err.message });
   }
 });
 

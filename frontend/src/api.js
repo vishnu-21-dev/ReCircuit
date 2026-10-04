@@ -102,7 +102,7 @@ export async function geminiCompatSuggest({ category, brand, model, part }) {
     body: JSON.stringify({ category, brand, model, part })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'compat-suggest failed');
+  if (!res.ok) throw new Error(data.detail || data.error || 'compat-suggest failed');
   return data.models;
 }
 
@@ -117,8 +117,8 @@ export const replyToReview = (reviewId, reply) =>
   apiFetch(`/reviews/${reviewId}/reply`, { method: 'PUT', body: JSON.stringify({ reply }) });
 
 // ── AI Visual Recognition ──────────────────────────────
-export const visualRecognizePart = (imageBase64) =>
-  apiFetch('/ai/visual-recognition', { method: 'POST', body: JSON.stringify({ imageBase64 }) });
+export const visualRecognizePart = (imageBase64, mimeType) =>
+  apiFetch('/ai/visual-recognition', { method: 'POST', body: JSON.stringify({ imageBase64, mimeType }) });
 
 // ── AI Fake Listing Detector ───────────────────────────
 export const detectFakeListing = (data) =>
